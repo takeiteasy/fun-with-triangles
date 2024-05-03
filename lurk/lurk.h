@@ -123,7 +123,6 @@ typedef enum bool {
 #include "ez/ezrng.h"
 #include "ez/ezfs.h"
 #include "ez/ezstack.h"
-#include "ez/ezecs.h"
 #include "gamepad/Gamepad.h"
 
 #include "config.h"
@@ -258,8 +257,6 @@ typedef struct lurkState {
     int windowWidth, windowHeight;
     sapp_desc desc;
     sg_pass_action pass_action;
-
-    ezWorld *world;
 
     struct {
         bool down;

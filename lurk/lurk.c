@@ -1539,8 +1539,6 @@ static void InitCallback(void) {
     state.prevFrameTime = stm_now();
     state.frameAccumulator = 0;
 
-    state.world = ezEcsNewWorld();
-
     state.nextScene = NULL;
     lurkSwapToScene(&state, LURK_FIRST_SCENE);
     assert(ReloadLibrary(state.nextScene));
@@ -1559,17 +1557,11 @@ static void ProcessCommandQueue(void) {
 static void CallFixedUpdate(void) {
     if (state.libraryScene->fixedupdate)
         state.libraryScene->fixedupdate(&state, state.libraryContext, state.fixedDeltaTime);
-#if !defined(LURK_ECS_VARIABLE_TICK)
-    ezEcsStep(state.world);
-#endif
 }
 
 static void CallVarUpdate(float delta) {
     if (state.libraryScene->update)
         state.libraryScene->update(&state, state.libraryContext, delta);
-#if defined(LURK_ECS_VARIABLE_TICK)
-    ezEcsStep(state.world);
-#endif
 }
 
 static void FrameCallback(void) {
@@ -1724,7 +1716,6 @@ static void CleanupCallback(void) {
     state.running = false;
     if (state.libraryScene->deinit)
         state.libraryScene->deinit(&state, state.libraryContext);
-    ezEcsFreeWorld(&state.world);
 #if !defined(LURK_DISABLE_HOTRELOAD)
     dmon_deinit();
 #endif

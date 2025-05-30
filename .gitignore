@@ -3,3 +3,4 @@ build/
 *.xcodeproj
 *.plist
 bin/
+.cache/

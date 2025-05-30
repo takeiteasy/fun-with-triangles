@@ -34,7 +34,7 @@ $(BIN)/%.$(LIBEXT): $(SRC)/%.c FORCE | $(BIN)
 scenes: $(TARGETS)
 
 program:
-	$(CC) $(INC) $(CFLAGS) src/*.c $(LINK) -o $(BUILD)/fwp$(PROGEXT)
+	$(CC) $(INC) $(CFLAGS) src/*.c $(LINK) -o $(BIN)/fwp$(PROGEXT)
 
 all: shader scenes program
 

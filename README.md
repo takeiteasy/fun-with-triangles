@@ -5,29 +5,20 @@
 
 ## TODO
 
-- [X] ~~Automatic batched rendering~~
-- [X] ~~Textures~~
-- [ ] Framebuffers
+- [X] Automatic batched rendering
+- [X] Textures
 - [X] Storable vertex buffers (wip)
 - [ ] Point size setting
 - [ ] Optional lighting
 - [ ] Optional fog
 - [ ] Documentation + comments
 
-## Dependencies
+## Libraries
 
 - [floooh/sokol](https://github.com/floooh/sokol/) (zlib/libpng)
-    - sokol_gfx.h
-    - sokol_app.h
-    - sokol_glue.h
-    - sokol_time.h
-    - sokol_log.h
 - [HandmadeMath/HandmadeMath](https://github.com/HandmadeMath/HandmadeMath/) (CC0-1.0)
-    - HandmadeMath.h
 - [nothings/stb](https://github.com/nothings/stb/) (MIT/Unlicense)
-    - stb_image.h
 - [phoboslab/qoi](https://github.com/phoboslab/qoi/) (MIT)
-    - qoi.h
 
 ## LICENSE
 ```

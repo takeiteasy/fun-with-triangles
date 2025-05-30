@@ -72,7 +72,7 @@ static int tick(fwtState *state, double delta) {
     state->ry += 2.f * delta;
     fwtMatrixMode(FWT_MATRIXMODE_PROJECTION);
     fwtLoadIdentity();
-    fwtPerspective(60.f, fwtWindowAspectRatio(), .01f, 10.f);
+    fwtPerspective(60.f, fwtAspectRatio(), .01f, 10.f);
     fwtMatrixMode(FWT_MATRIXMODE_MODELVIEW);
     fwtLoadIdentity();
     fwtLookAt(0.0f, 1.5f, 6.0f,

@@ -27,6 +27,7 @@ extern "C" {
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdarg.h>
 #include <string.h>
 
 #ifndef N_ARGS

@@ -4,7 +4,7 @@ struct fwtState {
     int dummy;
 };
 
-static fwtState* init(pbImage *framebuffer) {
+static fwtState* init(void) {
     fwtState *state = malloc(sizeof(fwtState));
     return state;
 }

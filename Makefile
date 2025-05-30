@@ -17,9 +17,10 @@ SHDC_PATH=bin/$(ARCH)/sokol-shdc$(PROG_EXT)
 default: program
 
 shader:
-	$(SHDC_PATH) -i etc/fwt.glsl -o src/fwt.glsl.h -l $(SHDC_FLAGS)
+	$(SHDC_PATH) -i etc/default.glsl -o src/fwt.glsl.h -l $(SHDC_FLAGS)
 
 SRC := scenes
+INC := -Ideps -Isrc -Ibuild
 BIN := build
 TARGETS := $(foreach file,$(foreach src,$(wildcard $(SRC)/*.c),$(notdir $(src))),$(patsubst %.c,$(BIN)/%.$(LIBEXT),$(file)))
 
@@ -28,12 +29,12 @@ TARGETS := $(foreach file,$(foreach src,$(wildcard $(SRC)/*.c),$(notdir $(src)))
 FORCE: ;
 
 $(BIN)/%.$(LIBEXT): $(SRC)/%.c FORCE | $(BIN)
-	$(CC) -shared -fpic $(CFLAGS) $(LINK) -o $@ $<
+	$(CC) $(INC) -shared -fpic $(CFLAGS) src/*.c $(LINK) -o $@ $<
 
 scenes: $(TARGETS)
 
 program:
-	$(CC) $(CFLAGS) src/fwp.c $(LINK) -o $(BUILD)/fwp$(PROGEXT)
+	$(CC) $(INC) $(CFLAGS) src/*.c $(LINK) -o $(BUILD)/fwp$(PROGEXT)
 
 all: shader scenes program
 

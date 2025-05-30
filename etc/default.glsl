@@ -12,7 +12,7 @@ in vec4 inst_mat_y;
 in vec4 inst_mat_z;
 in vec4 inst_mat_w;
 
-uniform vs_params {
+layout(binding=0) uniform vs_params {
     mat4 texture_matrix;
     mat4 projection;
 };
@@ -52,8 +52,8 @@ void main() {
 @end
 
 @fs fs
-uniform texture2D texture_v;
-uniform sampler sampler_v;
+layout(binding=0) uniform texture2D texture_v;
+layout(binding=1) uniform sampler sampler_v;
 
 in vec4 out_texcoord;
 in vec3 out_normal;
@@ -61,8 +61,8 @@ in vec4 out_color;
 out vec4 frag_color;
 
 void main() {
-    frag_color = texture(sampler2D(texture_v, sampler_v), out_texcoord.xy) * color;
+    frag_color = texture(sampler2D(texture_v, sampler_v), out_texcoord.xy) * out_color;
 }
 @end
 
-@program sim vs fs
+@program fwt vs fs

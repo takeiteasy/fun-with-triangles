@@ -19,6 +19,8 @@
 
 #include "fwt.h"
 #include "sokol/sokol_gfx.h"
+#include "sokol/sokol_app.h"
+#include "sokol/sokol_glue.h"
 #include "sokol/sokol_time.h"
 #include "sokol/sokol_log.h"
 #define SOKOL_IMPL
@@ -31,8 +33,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_NO_GIF
 #include "stb_image.h"
+#include "fwt.glsl.h"
 
-#if defined(SIM_WINDOWS)
+#if defined(FWT_WINDOWS)
 #include <windows.h>
 #include <io.h>
 #include <dirent.h>
@@ -40,7 +43,7 @@
 #define access _access
 #else
 #include <unistd.h>
-#endif // SIM_WINDOWS
+#endif // FWT_WINDOWS
 
 #if !defined(DEFAULT_WINDOW_WIDTH)
 #define DEFAULT_WINDOW_WIDTH 640
@@ -79,9 +82,9 @@ typedef struct {
 } fwt_vertex_t;
 
 enum {
-    SIM_CMD_VIEWPORT,
-    SIM_CMD_SCISSOR_RECT,
-    SIM_CMD_DRAW_CALL
+    FWT_CMD_VIEWPORT,
+    FWT_CMD_SCISSOR_RECT,
+    FWT_CMD_DRAW_CALL
 };
 
 typedef struct {
@@ -100,7 +103,7 @@ typedef struct {
 } fwt_draw_call_t;
 
 typedef struct {
-    fwt_matrix_stack_t matrix_stack[SIM_MATRIXMODE_COUNT];
+    fwt_matrix_stack_t matrix_stack[FWT_MATRIXMODE_COUNT];
     int matrix_mode;
     sg_color clear_color;
     fwt_draw_call_t draw_call;
@@ -131,8 +134,6 @@ static struct fwt_t {
     void(*loop)(double);
     void(*deinit)(void);
     void *userdata;
-    fwt_input_t current_input;
-    fwt_input_t last_input;
     fwt_state_t state;
     fwt_command_queue_t commands;
     sg_shader shader;
@@ -149,7 +150,7 @@ static struct fwt_t {
 };
 
 static hmm_mat4* fwt_matrix_stack_head(int mode) {
-    assert(mode >= 0 && mode < SIM_MATRIXMODE_COUNT);
+    assert(mode >= 0 && mode < FWT_MATRIXMODE_COUNT);
     fwt_matrix_stack_t *stack = &sim.state.matrix_stack[mode];
     return stack->count ? &stack->stack[stack->count-1] : NULL;
 }
@@ -182,6 +183,10 @@ static void fwt_push_command(int type, void *data) {
     }
 }
 
+extern void sapp_input_clear(void);
+extern void sapp_input_update(void);
+extern void sapp_input_handler(const sapp_event* e);
+
 static void init(void) {
     sg_desc desc = {
         .environment = sglue_environment(),
@@ -196,14 +201,14 @@ static void init(void) {
         .layout = {
             .buffers[1].step_func = SG_VERTEXSTEP_PER_INSTANCE,
             .attrs = {
-                [ATTR_vs_position] = { .format=SG_VERTEXFORMAT_FLOAT4, .buffer_index=0 },
-                [ATTR_vs_normal] = { .format=SG_VERTEXFORMAT_FLOAT3, .buffer_index=0 },
-                [ATTR_vs_texcoord] = { .format=SG_VERTEXFORMAT_FLOAT2, .buffer_index=0 },
-                [ATTR_vs_color_v] = { .format=SG_VERTEXFORMAT_FLOAT4, .buffer_index=0 },
-                [ATTR_vs_inst_mat_x] = { .format=SG_VERTEXFORMAT_FLOAT4, .buffer_index=1 },
-                [ATTR_vs_inst_mat_y] = { .format=SG_VERTEXFORMAT_FLOAT4, .buffer_index=1 },
-                [ATTR_vs_inst_mat_z] = { .format=SG_VERTEXFORMAT_FLOAT4, .buffer_index=1 },
-                [ATTR_vs_inst_mat_w] = { .format=SG_VERTEXFORMAT_FLOAT4, .buffer_index=1 }
+                [ATTR_fwt_position] = { .format=SG_VERTEXFORMAT_FLOAT4, .buffer_index=0 },
+                [ATTR_fwt_normal] = { .format=SG_VERTEXFORMAT_FLOAT3, .buffer_index=0 },
+                [ATTR_fwt_texcoord] = { .format=SG_VERTEXFORMAT_FLOAT2, .buffer_index=0 },
+                [ATTR_fwt_color_v] = { .format=SG_VERTEXFORMAT_FLOAT4, .buffer_index=0 },
+                [ATTR_fwt_inst_mat_x] = { .format=SG_VERTEXFORMAT_FLOAT4, .buffer_index=1 },
+                [ATTR_fwt_inst_mat_y] = { .format=SG_VERTEXFORMAT_FLOAT4, .buffer_index=1 },
+                [ATTR_fwt_inst_mat_z] = { .format=SG_VERTEXFORMAT_FLOAT4, .buffer_index=1 },
+                [ATTR_fwt_inst_mat_w] = { .format=SG_VERTEXFORMAT_FLOAT4, .buffer_index=1 }
             }
         },
         .shader = sim.shader,
@@ -214,20 +219,21 @@ static void init(void) {
         }
     };
 
-    for (int i = 0; i < SIM_MATRIXMODE_COUNT; i++) {
+    for (int i = 0; i < FWT_MATRIXMODE_COUNT; i++) {
         fwt_matrix_stack_t *stack = &sim.state.matrix_stack[i];
         stack->count = 1;
         stack->stack[0] = HMM_Mat4();
     }
 
-    sim.state.matrix_stack[SIM_MATRIXMODE_TEXTURE].stack[0] = HMM_Mat4d(1.f);
+    sim.state.matrix_stack[FWT_MATRIXMODE_TEXTURE].stack[0] = HMM_Mat4d(1.f);
     sim.state.blend_mode = -1;
-    fwt_blend_mode(SIM_BLEND_DEFAULT);
+    fwtBlendMode(FWT_BLEND_DEFAULT);
     sim.state.pip_desc.depth.compare = -1;
-    fwt_depth_func(SIM_CMP_DEFAULT);
+    fwtDepthFunc(FWT_CMP_DEFAULT);
     sim.state.pip_desc.cull_mode = -1;
-    fwt_cull_mode(SIM_CULL_DEFAULT);
+    fwtCullMode(FWT_CULL_DEFAULT);
 
+    sapp_input_clear();
     if (sim.init)
         sim.init();
 }
@@ -249,26 +255,26 @@ static void frame(void) {
     while (cursor) {
         fwt_command_t *tmp = cursor->next;
         switch (cursor->type) {
-            case SIM_CMD_VIEWPORT:
-            case SIM_CMD_SCISSOR_RECT:;
+            case FWT_CMD_VIEWPORT:
+            case FWT_CMD_SCISSOR_RECT:;
                 fwt_rect_t *rect = (fwt_rect_t*)cursor->data;
-                if (cursor->type == SIM_CMD_VIEWPORT)
-                    fwt_viewport(rect->x, rect->y, rect->w, rect->h);
+                if (cursor->type == FWT_CMD_VIEWPORT)
+                    fwtViewport(rect->x, rect->y, rect->w, rect->h);
                 else
-                    fwt_scissor_rect(rect->x, rect->y, rect->w, rect->h);
+                    fwtScissor(rect->x, rect->y, rect->w, rect->h);
                 break;
-            case SIM_CMD_DRAW_CALL:;
+            case FWT_CMD_DRAW_CALL:;
                 fwt_draw_call_t *call = (fwt_draw_call_t*)cursor->data;
                 sg_apply_pipeline(call->pip);
                 sg_apply_bindings(&call->bind);
                 vs_params_t vs_params;
                 vs_params.texture_matrix = call->texture_matrix;
                 vs_params.projection = call->projection;
-                sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, &SG_RANGE(vs_params));
+                sg_apply_uniforms(UB_vs_params, &SG_RANGE(vs_params));
                 sg_draw(0, call->vcount, call->icount);
                 sg_destroy_buffer(call->bind.vertex_buffers[0]);
                 sg_destroy_buffer(call->bind.vertex_buffers[1]);
-                sg_destroy_sampler(call->bind.fs.samplers[SLOT_sampler_v]);
+                sg_destroy_sampler(call->bind.samplers[SMP_sampler_v]);
                 sg_destroy_pipeline(call->pip);
                 break;
             default:
@@ -281,36 +287,11 @@ static void frame(void) {
     sim.commands.head = sim.commands.tail = NULL;
     sg_end_pass();
     sg_commit();
-
-    memcpy(&sim.last_input, &sim.current_input, sizeof(fwt_input_t));
-    memset(&sim.current_input, 0, sizeof(fwt_input_t));
+    sapp_input_update();
 }
 
 static void event(const sapp_event *e) {
-    switch (e->type) {
-        case SAPP_EVENTTYPE_KEY_UP:
-        case SAPP_EVENTTYPE_KEY_DOWN:
-            sim.current_input.keys[e->key_code].down = SAPP_EVENTTYPE_KEY_DOWN;
-            sim.current_input.keys[e->key_code].timestamp = stm_now();
-            sim.current_input.modifier = e->modifiers;
-            break;
-        case SAPP_EVENTTYPE_MOUSE_UP:
-        case SAPP_EVENTTYPE_MOUSE_DOWN:
-            sim.current_input.buttons[e->mouse_button].down = SAPP_EVENTTYPE_MOUSE_DOWN;
-            sim.current_input.buttons[e->mouse_button].timestamp = stm_now();
-            sim.current_input.modifier = e->modifiers;
-            break;
-        case SAPP_EVENTTYPE_MOUSE_MOVE:
-            sim.current_input.cursor.x = e->mouse_x;
-            sim.current_input.cursor.y = e->mouse_y;
-            break;
-        case SAPP_EVENTTYPE_MOUSE_SCROLL:
-            sim.current_input.scroll.x = e->scroll_x;
-            sim.current_input.scroll.y = e->scroll_y;
-            break;
-        default:
-            break;
-    }
+    sapp_input_handler(e);
 }
 
 static void cleanup(void) {
@@ -335,174 +316,11 @@ void fwtSetWindowTitle(const char *title) {
         sim.app_desc.window_title = title;
 }
 
-int fwtWindowWidth(void) {
-    return sim.running ? sapp_width() : -1;
-}
-
-int fwtWindowHeight(void) {
-    return sim.running ? sapp_height() : -1;
-}
-
-float fwtWindowAspectRatio(void) {
-    return sapp_widthf() / sapp_heightf();
-}
-
-int fwtIsWindowFullscreen(void) {
-    return sim.running ? sapp_is_fullscreen() : sim.app_desc.fullscreen;
-}
-
-void fwtToggleCursorLock(void) {
-    if (!sim.running)
-        sim.app_desc.fullscreen = !sim.app_desc.fullscreen;
-    else
-        sapp_toggle_fullscreen();
-}
-
-int fwtIsCursorVisible(void) {
-    return sim.running ? sapp_mouse_shown() : sim.mouse_hidden;
-}
-
-void fwtToggleCursorVisible(void) {
-    if (sim.running)
-        sapp_show_mouse(!sim.mouse_hidden);
-    sim.mouse_hidden = !sim.mouse_hidden;
-}
-
-int fwtIsCursorLocked(void) {
-    return sim.running? sapp_mouse_locked() : sim.mouse_locked;
-}
-
-void fwtToggleCursorLock(void) {
-    if (sim.running)
-        sapp_lock_mouse(!sim.mouse_locked);
-    sim.mouse_locked = !sim.mouse_locked;
-}
-
-int fwtIsKeyDown(int key) {
-    return sim.current_input.keys[key].down == 1;
-}
-
-int fwtIsKeyHeld(int key) {
-    return fwtIsKeyDown(key) && stm_sec(stm_since(sim.current_input.keys[key].timestamp)) > DEFAULT_KEY_HOLD_DELAY;
-}
-
-int fwtWasKeyPressed(int key) {
-    return fwtIsKeyDown(key) && !sim.last_input.keys[key].down;
-}
-
-int fwtWasKeyReleased(int key) {
-    return !fwtIsKeyDown(key) && sim.last_input.keys[key].down;
-}
-
-int fwtAreKeysDown(int n, ...) {
-    va_list args;
-    va_start(args, n);
-    int result = 1;
-    for (int i = 0; i < n; i++)
-        if (!sim.current_input.keys[va_arg(args, int)].down) {
-            result = 0;
-            goto BAIL;
-        }
-BAIL:
-    va_end(args);
-    return result;
-}
-
-int fwtAnyKeysDown(int n, ...) {
-    va_list args;
-    va_start(args, n);
-    int result = 0;
-    for (int i = 0; i < n; i++)
-        if (sim.current_input.keys[va_arg(args, int)].down) {
-            result = 1;
-            goto BAIL;
-        }
-BAIL:
-    va_end(args);
-    return result;
-}
-
-int fwtIsButtonDown(int button) {
-    return sim.current_input.buttons[button].down;
-}
-
-int fwtIsButtonHeld(int button) {
-    return fwtIsButtonDown(button) && stm_sec(stm_since(sim.current_input.buttons[button].timestamp)) > DEFAULT_KEY_HOLD_DELAY;
-}
-
-int fwtWasButtonPressed(int button) {
-    return fwtIsButtonDown(button) && !sim.last_input.buttons[button].down;
-}
-
-int fwtWasButtonReleased(int button) {
-    return !fwtIsButtonDown(button) && sim.last_input.buttons[button].down;
-}
-
-int __fwtAreButtonsDown(int n, ...) {
-    va_list args;
-    va_start(args, n);
-    int result = 1;
-    for (int i = 0; i < n; i++)
-        if (!sim.current_input.buttons[va_arg(args, int)].down) {
-            result = 0;
-            goto BAIL;
-        }
-BAIL:
-    va_end(args);
-    return result;
-}
-
-int __fwtAnyButtonsDown(int n, ...) {
-    va_list args;
-    va_start(args, n);
-    int result = 0;
-    for (int i = 0; i < n; i++)
-        if (sim.current_input.buttons[va_arg(args, int)].down) {
-            result = 1;
-            goto BAIL;
-        }
-BAIL:
-    va_end(args);
-    return result;
-}
-
-int fwtHasMouseMove(void) {
-    return sim.current_input.cursor.x != sim.last_input.cursor.x || sim.current_input.cursor.y != sim.last_input.cursor.y;
-}
-
-int fwtCursorX(void) {
-    return sim.current_input.cursor.x;
-}
-
-int fwtCursorY(void) {
-    return sim.current_input.cursor.y;
-}
-
-int fwtCursorDeltaX(void) {
-    return sim.current_input.cursor.x - sim.last_input.cursor.x;
-}
-
-int fwtCursorDeltaY(void) {
-    return sim.current_input.cursor.y - sim.last_input.cursor.y;
-}
-
-int fwtHasWheelMoved(void) {
-    return sim.current_input.scroll.x != 0 || sim.current_input.scroll.y != 0;
-}
-
-float fwtScrollX(void) {
-    return sim.current_input.scroll.x;
-}
-
-float fwtScrollY(void) {
-    return sim.current_input.scroll.y;
-}
-
 void fwtMatrixMode(int mode) {
     switch (mode) {
-        case SIM_MATRIXMODE_PROJECTION:
-        case SIM_MATRIXMODE_TEXTURE:
-        case SIM_MATRIXMODE_MODELVIEW:
+        case FWT_MATRIXMODE_PROJECTION:
+        case FWT_MATRIXMODE_TEXTURE:
+        case FWT_MATRIXMODE_MODELVIEW:
             sim.state.matrix_mode = mode;
             break;
         default:
@@ -536,31 +354,31 @@ void fwtMulMatrix(const float *matf) {
     fwt_set_current_matrix(result);
 }
 
-#define SIM_MUL_MATRIX(M) fwtMulMatrix((float*)&(M))
+#define FWT_MUL_MATRIX(M) fwtMulMatrix((float*)&(M))
 
 void fwtTranslate(float x, float y, float z) {
     hmm_mat4 mat = HMM_Translate(HMM_Vec3(x, y, z));
-    SIM_MUL_MATRIX(mat);
+    FWT_MUL_MATRIX(mat);
 }
 
 void fwtRotate(float angle, float x, float y, float z) {
     hmm_mat4 mat = HMM_Rotate(angle, HMM_Vec3(x, y, z));
-    SIM_MUL_MATRIX(mat);
+    FWT_MUL_MATRIX(mat);
 }
 
 void fwtScale(float x, float y, float z) {
     hmm_mat4 mat = HMM_Scale(HMM_Vec3(x, y, z));
-    SIM_MUL_MATRIX(mat);
+    FWT_MUL_MATRIX(mat);
 }
 
 void fwtOrtho(double left, double right, double bottom, double top, double znear, double zfar) {
     hmm_mat4 mat = HMM_Orthographic(left, right, bottom, top, znear, zfar);
-    SIM_MUL_MATRIX(mat);
+    FWT_MUL_MATRIX(mat);
 }
 
 void fwtPerspective(float fovy, float aspect_ratio, float znear, float zfar) {
     hmm_mat4 mat = HMM_Perspective(fovy, aspect_ratio, znear, zfar);
-    SIM_MUL_MATRIX(mat);
+    FWT_MUL_MATRIX(mat);
 }
 
 void fwtLookAt(float eyeX, float eyeY, float eyeZ,
@@ -569,7 +387,7 @@ void fwtLookAt(float eyeX, float eyeY, float eyeZ,
     hmm_mat4 mat = HMM_LookAt(HMM_Vec3(eyeX, eyeY, eyeZ),
                               HMM_Vec3(targetX, targetY, targetZ),
                               HMM_Vec3(upX, upY, upZ));
-    SIM_MUL_MATRIX(mat);
+    FWT_MUL_MATRIX(mat);
 }
 
 void fwtClearColor(float r, float g, float b, float a) {
@@ -582,7 +400,7 @@ void fwtViewport(int x, int y, int width, int height) {
     rect->y = y;
     rect->w = width;
     rect->h = height;
-    fwt_push_command(SIM_CMD_VIEWPORT, rect);
+    fwt_push_command(FWT_CMD_VIEWPORT, rect);
 }
 
 void fwtScissor(int x, int y, int width, int height) {
@@ -591,7 +409,7 @@ void fwtScissor(int x, int y, int width, int height) {
     rect->y = y;
     rect->w = width;
     rect->h = height;
-    fwt_push_command(SIM_CMD_SCISSOR_RECT, rect);
+    fwt_push_command(FWT_CMD_SCISSOR_RECT, rect);
 }
 
 void fwtBlendMode(int mode) {
@@ -599,7 +417,7 @@ void fwtBlendMode(int mode) {
         return;
     sg_blend_state *blend = &sim.state.blend;
     switch (mode) {
-        case SIM_BLEND_NONE:
+        case FWT_BLEND_NONE:
             blend->enabled = false;
             blend->src_factor_rgb = SG_BLENDFACTOR_ONE;
             blend->dst_factor_rgb = SG_BLENDFACTOR_ZERO;
@@ -608,7 +426,7 @@ void fwtBlendMode(int mode) {
             blend->dst_factor_alpha = SG_BLENDFACTOR_ZERO;
             blend->op_alpha = SG_BLENDOP_ADD;
             break;
-        case SIM_BLEND_BLEND:
+        case FWT_BLEND_BLEND:
             blend->enabled = true;
             blend->src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
             blend->dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
@@ -617,7 +435,7 @@ void fwtBlendMode(int mode) {
             blend->dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
             blend->op_alpha = SG_BLENDOP_ADD;
             break;
-        case SIM_BLEND_ADD:
+        case FWT_BLEND_ADD:
             blend->enabled = true;
             blend->src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
             blend->dst_factor_rgb = SG_BLENDFACTOR_ONE;
@@ -626,7 +444,7 @@ void fwtBlendMode(int mode) {
             blend->dst_factor_alpha = SG_BLENDFACTOR_ONE;
             blend->op_alpha = SG_BLENDOP_ADD;
             break;
-        case SIM_BLEND_MOD:
+        case FWT_BLEND_MOD:
             blend->enabled = true;
             blend->src_factor_rgb = SG_BLENDFACTOR_DST_COLOR;
             blend->dst_factor_rgb = SG_BLENDFACTOR_ZERO;
@@ -636,7 +454,7 @@ void fwtBlendMode(int mode) {
             blend->op_alpha = SG_BLENDOP_ADD;
             break;
         default:
-        case SIM_BLEND_MUL:
+        case FWT_BLEND_MUL:
             blend->enabled = true;
             blend->src_factor_rgb = SG_BLENDFACTOR_DST_COLOR;
             blend->dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
@@ -649,22 +467,22 @@ void fwtBlendMode(int mode) {
     sim.state.blend_mode = mode;
 }
 
-void fwtState(int func) {
+void fwtDepthFunc(int func) {
     if (func == sim.state.pip_desc.depth.compare)
         return;
     switch (func) {
         default:
-        case SIM_CMP_DEFAULT:
-            func = SIM_CMP_LESS_EQUAL;
-        case SIM_CMP_NEVER:
-        case SIM_CMP_LESS:
-        case SIM_CMP_EQUAL:
-        case SIM_CMP_LESS_EQUAL:
-        case SIM_CMP_GREATER:
-        case SIM_CMP_NOT_EQUAL:
-        case SIM_CMP_GREATER_EQUAL:
-        case SIM_CMP_ALWAYS:
-        case SIM_CMP_NUM:
+        case FWT_CMP_DEFAULT:
+            func = FWT_CMP_LESS_EQUAL;
+        case FWT_CMP_NEVER:
+        case FWT_CMP_LESS:
+        case FWT_CMP_EQUAL:
+        case FWT_CMP_LESS_EQUAL:
+        case FWT_CMP_GREATER:
+        case FWT_CMP_NOT_EQUAL:
+        case FWT_CMP_GREATER_EQUAL:
+        case FWT_CMP_ALWAYS:
+        case FWT_CMP_NUM:
             sim.state.pip_desc.depth.compare = (sg_compare_func)func;
             break;
     }
@@ -675,11 +493,11 @@ void fwtCullMode(int mode) {
         return;
     switch (mode) {
         default:
-        case SIM_CULL_DEFAULT:
-            mode = SIM_CULL_BACK;
-        case SIM_CULL_NONE:
-        case SIM_CULL_FRONT:
-        case SIM_CULL_BACK:
+        case FWT_CULL_DEFAULT:
+            mode = FWT_CULL_BACK;
+        case FWT_CULL_NONE:
+        case FWT_CULL_FRONT:
+        case FWT_CULL_BACK:
             sim.state.pip_desc.cull_mode = mode;
             break;
     }
@@ -688,30 +506,30 @@ void fwtCullMode(int mode) {
 void fwtBegin(int mode) {
     assert(!sim.state.draw_call.vertices && !sim.state.draw_call.instances);
     if (sim.state.draw_call.vertices)
-        fwt_end();
+        fwtEnd();
     sim.state.draw_call.vertices = malloc(0);
     sim.state.draw_call.vcount = 0;
     sim.state.draw_call.instances = malloc(0);
     sim.state.draw_call.icount = 0;
     switch (mode) {
         default:
-            mode = SIM_DRAW_TRIANGLES;
-        case SIM_DRAW_TRIANGLES:
-        case SIM_DRAW_POINTS:
-        case SIM_DRAW_LINES:
-        case SIM_DRAW_LINE_STRIP:
-        case SIM_DRAW_TRIANGLE_STRIP:
+            mode = FWT_DRAW_TRIANGLES;
+        case FWT_DRAW_TRIANGLES:
+        case FWT_DRAW_POINTS:
+        case FWT_DRAW_LINES:
+        case FWT_DRAW_LINE_STRIP:
+        case FWT_DRAW_TRIANGLE_STRIP:
             sim.state.pip_desc.primitive_type = mode;
             break;
     }
 }
 
 void fwtVertex2i(int x, int y) {
-    fwt_vertex3f((float)x, (float)y, 0.f);
+    fwtVertex3f((float)x, (float)y, 0.f);
 }
 
 void fwtVertex2f(float x, float y) {
-    fwt_vertex3f(x, y, 0.f);
+    fwtVertex3f(x, y, 0.f);
 }
 
 void fwtVertex3f(float x, float y, float z) {
@@ -764,7 +582,7 @@ static void make_vs_inst(fwt_vs_inst_t *inst, hmm_mat4 model) {
 void fwtDraw(void) {
     sim.state.draw_call.instances = realloc(sim.state.draw_call.instances, ++sim.state.draw_call.icount * sizeof(fwt_vs_inst_t));
     fwt_vs_inst_t *inst = &sim.state.draw_call.instances[sim.state.draw_call.icount-1];
-    hmm_mat4 *m = fwt_matrix_stack_head(SIM_MATRIXMODE_MODELVIEW);
+    hmm_mat4 *m = fwt_matrix_stack_head(FWT_MATRIXMODE_MODELVIEW);
     make_vs_inst(inst, m ? *m : HMM_Mat4());
 }
 
@@ -777,19 +595,19 @@ void fwtEnd(void) {
     }
 
     sim.state.draw_call.pip = sg_make_pipeline(&sim.state.pip_desc);
-    sim.state.draw_call.projection = *fwt_matrix_stack_head(SIM_MATRIXMODE_PROJECTION);
-    sim.state.draw_call.texture_matrix = *fwt_matrix_stack_head(SIM_MATRIXMODE_TEXTURE);
+    sim.state.draw_call.projection = *fwt_matrix_stack_head(FWT_MATRIXMODE_PROJECTION);
+    sim.state.draw_call.texture_matrix = *fwt_matrix_stack_head(FWT_MATRIXMODE_TEXTURE);
 
     sg_buffer_desc inst_desc = {
         .size = sim.state.draw_call.icount * sizeof(fwt_vs_inst_t),
-        .usage = SG_USAGE_STREAM
+        .usage.stream_update = true
     };
-    sg_buffer vbuf = (sg_buffer){.id=fwt_store_buffer()};
+    sg_buffer vbuf = (sg_buffer){.id=fwtStoreBuffer()};
     sim.state.draw_call.bind = (sg_bindings) {
         .vertex_buffers[0] = vbuf,
         .vertex_buffers[1] = sg_make_buffer(&inst_desc),
-        .fs.images[SLOT_texture_v] = sim.state.current_texture,
-        .fs.samplers = sg_make_sampler(&sim.state.sampler_desc)
+        .images[IMG_texture_v] = sim.state.current_texture,
+        .samplers = sg_make_sampler(&sim.state.sampler_desc)
     };
     sg_range r0 = {
         .ptr = sim.state.draw_call.instances,
@@ -798,7 +616,7 @@ void fwtEnd(void) {
     sg_update_buffer(sim.state.draw_call.bind.vertex_buffers[1], &r0);
     fwt_draw_call_t *draw_call = malloc(sizeof(fwt_draw_call_t));
     memcpy(draw_call, &sim.state.draw_call, sizeof(fwt_draw_call_t));
-    fwt_push_command(SIM_CMD_DRAW_CALL, draw_call);
+    fwt_push_command(FWT_CMD_DRAW_CALL, draw_call);
 
 BAIL:
     if (sim.state.draw_call.vertices) {
@@ -819,7 +637,7 @@ int fwtEmptyTexture(int width, int height) {
         .width = width,
         .height = height,
         .pixel_format = SG_PIXELFORMAT_RGBA8,
-        .usage = SG_USAGE_STREAM
+        .usage.stream_update = true
     };
     return sg_make_image(&desc).id;
 }
@@ -876,7 +694,7 @@ int fwtLoadTexturePath(const char *path) {
     unsigned char *data = malloc(sz * sizeof(unsigned char));
     fread(data, sz, 1, fh);
     fclose(fh);
-    int result = fwt_load_texture_memory(data, (int)sz);
+    int result = fwtLoadTextureMemory(data, (int)sz);
     free(data);
     return result;
 }
@@ -921,7 +739,7 @@ int fwtLoadTextureMemory(unsigned char *data, int data_size) {
     int w, h;
     int *tmp = load_texture_data(data, data_size, &w, &h);
     assert(tmp && w && h);
-    sg_image texture = { .id=fwt_empty_texture(w, h) };
+    sg_image texture = { .id=fwtEmptyTexture(w, h) };
     sg_image_data desc = {
         .subimage[0][0] = (sg_range) {
             .ptr = tmp,
@@ -936,18 +754,18 @@ int fwtLoadTextureMemory(unsigned char *data, int data_size) {
 static void set_filter(sg_filter *dst, int val) {
     switch (val) {
         default:
-        case SIM_FILTER_DEFAULT:
-            val = SIM_FILTER_NONE;
-        case SIM_FILTER_NONE:
-        case SIM_FILTER_NEAREST:
-        case SIM_FILTER_LINEAR:
+        case FWT_FILTER_DEFAULT:
+            val = FWT_FILTER_NONE;
+        case FWT_FILTER_NONE:
+        case FWT_FILTER_NEAREST:
+        case FWT_FILTER_LINEAR:
             if (dst)
                 *dst = val;
             break;
     }
 }
 
-void fwtState(int min, int mag) {
+void fwtSetTextureFilter(int min, int mag) {
     assert(sg_query_image_state(sim.state.current_texture) == SG_RESOURCESTATE_VALID);
     set_filter(&sim.state.sampler_desc.min_filter, min);
     set_filter(&sim.state.sampler_desc.mag_filter, mag);
@@ -956,12 +774,12 @@ void fwtState(int min, int mag) {
 static void set_wrap(sg_wrap *dst, int val) {
     switch (val) {
         default:
-        case SIM_WRAP_DEFAULT:
-            val = SIM_WRAP_REPEAT;
-        case SIM_WRAP_REPEAT:
-        case SIM_WRAP_CLAMP_TO_EDGE:
-        case SIM_WRAP_CLAMP_TO_BORDER:
-        case SIM_WRAP_MIRRORED_REPEAT:
+        case FWT_WRAP_DEFAULT:
+            val = FWT_WRAP_REPEAT;
+        case FWT_WRAP_REPEAT:
+        case FWT_WRAP_CLAMP_TO_EDGE:
+        case FWT_WRAP_CLAMP_TO_BORDER:
+        case FWT_WRAP_MIRRORED_REPEAT:
             if (dst)
                 *dst = val;
             break;

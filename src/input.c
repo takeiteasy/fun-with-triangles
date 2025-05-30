@@ -22,6 +22,7 @@
 #include "garry.h"
 #include "sokol/sokol_app.h"
 #include "sokol/sokol_time.h"
+#include "sokol/sokol_log.h"
 
 typedef struct {
     bool down;

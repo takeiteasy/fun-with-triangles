@@ -29,6 +29,20 @@
 #include "sokol/sokol_log.h"
 #include "fwt.glsl.h"
 
+#define PLATFORM_POSIX
+#if defined(__APPLE__) || defined(__MACH__)
+#define PLATFORM_MAC
+#elif defined(_WIN32) || defined(_WIN64)
+#define PLATFORM_WINDOWS
+#if !defined(PLATFORM_FORCE_POSIX)
+#undef PLATFORM_POSIX
+#endif
+#elif defined(__gnu_linux__) || defined(__linux__) || defined(__unix__)
+#define PLATFORM_LINUX
+#else
+#error Unknown platform
+#endif
+
 #if !defined(DEFAULT_WINDOW_WIDTH)
 #define DEFAULT_WINDOW_WIDTH 640
 #endif

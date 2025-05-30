@@ -43,6 +43,9 @@
 #include <sys/stat.h>
 #include <dlfcn.h>
 #endif
+#ifdef PLATFORM_MAC
+#include <Cocoa/Cocoa.h>
+#endif
 
 int fwtFrameBufferWidth(void) {
     return sapp_width() * (int)fwtFrameBufferScaleFactor();
@@ -59,10 +62,6 @@ float fwtFrameBufferWidthf(void) {
 float fwtFrameBufferHeightf(void) {
     return sapp_heightf() * fwtFrameBufferScaleFactor();
 }
-
-#ifdef __APPLE__
-#include <Cocoa/Cocoa.h>
-#endif
 
 float fwtFrameBufferScaleFactor(void) {
 #ifdef __APPLE__
@@ -96,7 +95,6 @@ static struct {
         unsigned int width;
         unsigned int height;
         const char *title;
-        int flags;
         char *path;
     } args;
 } state;
@@ -321,8 +319,6 @@ static struct option long_options[] = {
     {"width", required_argument, NULL, 'w'},
     {"height", required_argument, NULL, 'h'},
     {"title", required_argument, NULL, 't'},
-    {"resizable", no_argument, NULL, 'r'},
-    {"top", no_argument, NULL, 'a'},
     {"usage", no_argument, NULL, 'u'},
     {"path", required_argument, NULL, 'p'},
     {NULL, 0, NULL, 0}
@@ -340,8 +336,6 @@ static void usage(int exit_code) {
     puts("      -w/--width     Window width [default: 640]");
     puts("      -h/--height    Window height [default: 480]");
     puts("      -t/--title     Window title [default: \"fwp\"]");
-    puts("      -r/--resizable Enable resizable window");
-    puts("      -a/--top       Enable window always on top");
     puts("      -u/--usage     Display this message");
     exit(exit_code);
 }
@@ -447,7 +441,7 @@ sapp_desc sokol_main(int argc, char* argv[]) {
     extern int optopt;
     extern int optind;
     int opt;
-    while ((opt = getopt_long(argc, argv, ":w:h:t:uar", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, ":w:h:t:u", long_options, NULL)) != -1) {
         switch (opt) {
             case 'w':
                 state.args.width = atoi(optarg);
@@ -457,12 +451,6 @@ sapp_desc sokol_main(int argc, char* argv[]) {
                 break;
             case 't':
                 state.args.title = optarg;
-                break;
-            case 'r':
-                state.args.flags |= FWT_RESIZABLE;
-                break;
-            case 'a':
-                state.args.flags |= FWT_ALWAYS_ON_TOP;
                 break;
             case ':':
                 printf("ERROR: \"-%c\" requires an value!\n", optopt);

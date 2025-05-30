@@ -17,11 +17,9 @@
  You should have received a copy of the GNU General Public License
  along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
-#include "fwt.h"
-#define SOKOL_IMPL
 #define HANDMADE_MATH_IMPLEMENTATION
+#define SOKOL_IMPL
 #include "internal.h"
-#include "fwt.glsl.h"
 
 #if defined(PLATFORM_WINDOWS)
 #include <Windows.h>

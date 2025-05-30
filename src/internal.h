@@ -19,6 +19,7 @@
 
 #ifndef INTERNAL_H
 #define INTERNAL_H
+#include "fwt.h"
 #include <assert.h>
 #define HANDMADE_MATH_NO_SSE
 #include "HandmadeMath.h"

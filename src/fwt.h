@@ -332,7 +332,7 @@ void fwtSetWindowSize(int width, int height);
 void fwtSetWindowTitle(const char *title);
 int fwtWindowWidth(void);
 int fwtWindowHeight(void);
-float fwtAspectRatio(void);
+float fwtWindowAspectRatio(void);
 int fwtIsWindowFullscreen(void);
 void fwtToggleFullscreen(void);
 int fwtIsCursorVisible(void);
@@ -385,6 +385,12 @@ void fwtReleaseTexture(int texture);
 int fwtStoreBuffer(void);
 void fwtLoadBuffer(int buffer);
 void fwtReleaseBuffer(int buffer);
+
+bool fwtSetWorkingDir(const char *path);
+void fwtMountFileSystem(const char *path);
+bool fwtFileExists(const char *filename);
+unsigned char* fwtReadFile(const char *filename, size_t *size);
+bool fwtWriteFile(const char *filename, unsigned char *data, size_t size);
 
 #ifdef __cplusplus
 }

@@ -114,10 +114,6 @@ typedef struct {
     int mouse_hidden;
     int mouse_locked;
     sapp_desc app_desc;
-    void(*init)(void);
-    void(*loop)(double);
-    void(*deinit)(void);
-    void *userdata;
     fwt_state_t state;
     fwt_command_queue_t commands;
     sg_shader shader;

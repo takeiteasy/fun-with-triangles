@@ -8,10 +8,9 @@
 - [X] Automatic batched rendering
 - [X] Textures
 - [X] Storable vertex buffers (wip)
+- [X] Optional virtual file system
 - [ ] Point size setting
-- [ ] Optional lighting
-- [ ] Optional fog
-- [ ] Documentation + comments
+- [ ] Optional lighting + fog
 
 ## Libraries
 
@@ -19,6 +18,8 @@
 - [HandmadeMath/HandmadeMath](https://github.com/HandmadeMath/HandmadeMath/) (CC0-1.0)
 - [nothings/stb](https://github.com/nothings/stb/) (MIT/Unlicense)
 - [phoboslab/qoi](https://github.com/phoboslab/qoi/) (MIT)
+- [r-lyeh/stdpack.c](https://github.com/r-lyeh/stdpack.c/) (Public Domain)
+- [r-lyeh/stdarc.c](https://github.com/r-lyeh/stdarc.c/) (Public Domain)
 
 ## LICENSE
 ```

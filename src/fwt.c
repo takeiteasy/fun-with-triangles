@@ -80,9 +80,26 @@ fwt_t fwt = {
         .width = DEFAULT_WINDOW_WIDTH,
         .height = DEFAULT_WINDOW_WIDTH,
         .window_title = DEFAULT_WINDOW_TITLE
-    },
-    .userdata = NULL
+    }
 };
+
+static struct {
+#if defined(PLATFORM_WINDOWS)
+    FILETIME writeTime;
+#else
+    ino_t handleID;
+#endif
+    void *handle;
+    fwtState *state;
+    fwtScene *scene;
+    struct {
+        unsigned int width;
+        unsigned int height;
+        const char *title;
+        int flags;
+        char *path;
+    } args;
+} state;
 
 hmm_mat4* fwt_matrix_stack_head(int mode) {
     assert(mode >= 0 && mode < FWT_MATRIXMODE_COUNT);
@@ -142,7 +159,7 @@ int fwtWindowHeight(void) {
     return fwt.running ? sapp_height() : -1;
 }
 
-float fwtAspectRatio(void) {
+float fwtWindowAspectRatio(void) {
     return sapp_widthf() / sapp_heightf();
 }
 
@@ -186,6 +203,10 @@ static void init(void) {
     sg_setup(&desc);
     stm_setup();
 
+#ifdef FWT_DEFAULT_WORKING_PATH
+    fwtSetWorkingPath(FWT_DEFAULT_WORKING_PATH);
+#endif
+
     fwt.shader = sg_make_shader(fwt_shader_desc(sg_query_backend()));
     fwt.state.pip_desc = (sg_pipeline_desc) {
         .layout = {
@@ -224,13 +245,14 @@ static void init(void) {
     fwtCullMode(FWT_CULL_DEFAULT);
 
     sapp_input_clear();
-    if (fwt.init)
-        fwt.init();
+    if (state.scene->init)
+        state.scene->init();
 }
 
 static void frame(void) {
     const float t = (float)(sapp_frame_duration() * 60.);
-    fwt.loop(t);
+    if (state.scene->tick)
+        state.scene->tick(state.state, t);
 
     sg_begin_pass(&(sg_pass) {
         .action = {
@@ -284,28 +306,9 @@ static void event(const sapp_event *e) {
     sapp_input_handler(e);
 }
 
-static struct {
-#if defined(PLATFORM_WINDOWS)
-    FILETIME writeTime;
-#else
-    ino_t handleID;
-#endif
-    void *handle;
-    fwtState *state;
-    fwtScene *scene;
-    struct {
-        unsigned int width;
-        unsigned int height;
-        const char *title;
-        int flags;
-        char *path;
-    } args;
-} state;
-
 static void cleanup(void) {
-    if (fwt.deinit)
-        fwt.deinit();
-    state.scene->deinit(state.state);
+    if (state.scene->deinit)
+        state.scene->deinit(state.state);
     if (state.handle)
         dlclose(state.handle);
 #if !defined(PLATFORM_WINDOWS)

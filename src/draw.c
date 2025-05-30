@@ -19,8 +19,6 @@
 
 #include "fwt.h"
 #include "internal.h"
-#define SOKOL_IMPL
-#include "sokol/util/sokol_shape.h"
 #define QOI_IMPLEMENTATION
 #include "qoi.h"
 #define STB_IMAGE_IMPLEMENTATION
@@ -375,18 +373,14 @@ void fwtPopTexture(void) {
     memset(&fwt.state.current_texture, 0, sizeof(sg_image));
 }
 
-static int does_file_exist(const char *path) {
-    return !access(path, F_OK);
-}
-
 static const char* file_extension(const char *path) {
     const char *dot = strrchr(path, '.');
     return !dot || dot == path ? NULL : dot + 1;
 }
 
 int fwtLoadTexturePath(const char *path) {
-    assert(does_file_exist(path));
-#define VALID_EXTS_SZ 11
+    assert(fwtFileExists(path));
+    #define VALID_EXTS_SZ 11
     static const char *valid_extensions[VALID_EXTS_SZ] = {
         "jpg", "jpeg", "png", "bmp", "psd", "tga", "hdr", "pic", "ppm", "pgm", "qoi"
     };
@@ -408,15 +402,8 @@ int fwtLoadTexturePath(const char *path) {
         return SG_INVALID_ID;
 
     size_t sz = -1;
-    FILE *fh = fopen(path, "rb");
-    assert(fh);
-    fseek(fh, 0, SEEK_END);
-    sz = ftell(fh);
-    fseek(fh, 0, SEEK_SET);
-
-    unsigned char *data = malloc(sz * sizeof(unsigned char));
-    fread(data, sz, 1, fh);
-    fclose(fh);
+    unsigned char *data = fwtReadFile(path, &sz);
+    assert(data && sz > 0);
     int result = fwtLoadTextureMemory(data, (int)sz);
     free(data);
     return result;

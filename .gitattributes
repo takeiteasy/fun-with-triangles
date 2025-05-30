@@ -1,2 +1,1 @@
-tools/* linguist-vendored
-lurk/deps/* linguist-vendored
+src/*.h linguist-language=c

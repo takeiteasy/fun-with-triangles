@@ -1,9 +1,5 @@
 .DS_Store
 build/
+*.xcodeproj
 *.plist
-*.xcodeproj/
-project_test.yml
-*.json
-*.pyc
-test/
-.#*
+bin/

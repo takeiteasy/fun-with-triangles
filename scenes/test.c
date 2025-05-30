@@ -1,53 +1,107 @@
-#include "lurk.h"
+#include "fwt.h"
 
-struct lurkContext {
-    uint64_t texture;
+static float vertices[] = {
+    -1.0f, -1.0f, -1.0f,  0.f, 0.f,
+     1.0f, -1.0f, -1.0f,  1.f, 0.f,
+     1.0f,  1.0f, -1.0f,  1.f, 1.f,
+    -1.0f,  1.0f, -1.0f,  0.f, 1.f,
+
+    -1.0f, -1.0f,  1.0f,  0.f, 0.f,
+     1.0f, -1.0f,  1.0f,  1.f, 0.f,
+     1.0f,  1.0f,  1.0f,  1.f, 1.f,
+    -1.0f,  1.0f,  1.0f,  0.f, 1.f,
+
+    -1.0f, -1.0f, -1.0f,  0.f, 0.f,
+    -1.0f,  1.0f, -1.0f,  1.f,  0.f,
+    -1.0f,  1.0f,  1.0f,  1.f, 1.f,
+    -1.0f, -1.0f,  1.0f,  0.f, 1.f,
+
+     1.0f, -1.0f, -1.0f,  0.f, 0.f,
+     1.0f,  1.0f, -1.0f,  1.f, 0.f,
+     1.0f,  1.0f,  1.0f,  1.f, 1.f,
+     1.0f, -1.0f,  1.0f,  0.f, 1.f,
+
+    -1.0f, -1.0f, -1.0f,  0.f, 0.f,
+    -1.0f, -1.0f,  1.0f,  1.f, 0.f,
+     1.0f, -1.0f,  1.0f,  1.f, 1.f,
+     1.0f, -1.0f, -1.0f,  0.f, 1.f,
+
+    -1.0f,  1.0f, -1.0f,  0.f, 0.f,
+    -1.0f,  1.0f,  1.0f,  1.f, 0.f,
+     1.0f,  1.0f,  1.0f,  1.f, 1.f,
+     1.0f,  1.0f, -1.0f,  0.f, 1.f,
 };
 
-typedef struct {
-    int dummy;
-} TestComponent;
+static int indices[] = {
+    0,  1,  2,   0,  2,  3,
+    6,  5,  4,   7,  6,  4,
+    8,  9,  10,  8,  10, 11,
+    14, 13, 12,  15, 14, 12,
+    16, 17, 18,  16, 18, 19,
+    22, 21, 20,  23, 22, 20
+};
 
-static lurkContext* init(lurkState* state) {
-    lurkContext *result = malloc(sizeof(struct lurkContext));
-    result->texture = lurkFindTexture(state, "test2.png");
-    return result;
+struct fwtState {
+    int pear_texture;
+    float rx, ry;
+};
+
+static fwtState* init(void) {
+    fwtState *state = malloc(sizeof(fwtState));
+    state->pear_texture = fwtLoadTexturePath("assets/pear.jpg");
+    state->rx = 0.f;
+    state->ry = 0.f;
+    return state;
 }
 
-static void deinit(lurkState* state, lurkContext *context) {
-    free(context);
+static void deinit(fwtState *state) {
+    if (state)
+        free(state);
 }
 
-static void reload(lurkState* state, lurkContext *context) {
-
+static void reload(fwtState *state) {
+    // Called when the dynamic has been updated + reloaded
 }
 
-static void unload(lurkState* state, lurkContext *context) {
-
+static void unload(fwtState *state) {
+    // Called when dynamic library has been unloaded
 }
 
-static void event(lurkState* state, lurkContext *context, lurkEventType event) {
+static int tick(fwtState *state, double delta) {
+    state->rx += 1.f * delta;
+    state->ry += 2.f * delta;
+    fwtMatrixMode(FWT_MATRIXMODE_PROJECTION);
+    fwtLoadIdentity();
+    fwtPerspective(60.f, fwtWindowAspectRatio(), .01f, 10.f);
+    fwtMatrixMode(FWT_MATRIXMODE_MODELVIEW);
+    fwtLoadIdentity();
+    fwtLookAt(0.0f, 1.5f, 6.0f,
+              0.0f, 0.0f, 0.0f,
+              0.0f, 1.0f, 0.0f);
+    fwtRotate(state->rx, 1.f, 0.f, 0.f);
+    fwtRotate(state->ry, 0.f, 1.f, 0.f);
 
+    fwtPushTexture(state->pear_texture);
+    fwtBegin(FWT_DRAW_TRIANGLES);
+    for (int i = 0; i < 36; i++) {
+        int j = indices[i];
+        float *data = vertices + j * 5;
+        fwtTexCoord2f(data[3], data[4]);
+        fwtVertex3f(data[0], data[1], data[2]);
+    }
+    fwtDraw();
+    fwtEnd();
+    fwtPopTexture();
+    return 1;
 }
 
-static void frame(lurkState* state, lurkContext *context, float delta) {
-    int width, height;
-    lurkWindowSize(state, &width, &height);
-    float ratio = (float)width / (float)height;
-    lurkViewport(state, 0, 0, width, height);
-    lurkProject(state, -ratio, ratio, 1.f, -1.f);
-    lurkSetColor(state, 1.f, 0.f, 0.f, 1.f);
-    lurkClear(state);
-
-    lurkSetColor(state, 0.f, 0.f, 0.f, 1.f);
-    lurkDrawFilledRect(state, -.5f, -.5f, 1.f, 1.f);
-}
-
-EXPORT const lurkScene scene = {
+// So fwt knows where your callbacks are a `scene` definition must be made
+// The definition should be always be called scene. If the name changes fwt
+// won't know where to look!
+const fwtScene scene = {
     .init = init,
     .deinit = deinit,
     .reload = reload,
     .unload = unload,
-    .event = event,
-    .frame = frame
+    .tick = tick
 };

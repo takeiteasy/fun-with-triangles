@@ -19,22 +19,24 @@ default: program
 shader:
 	$(SHDC_PATH) -i etc/default.glsl -o src/fwt.glsl.h -l $(SHDC_FLAGS)
 
-SRC := scenes
+ALL_SRC := $(wildcard src/*.c)
+SRC := $(filter-out src/fwt.c, $(ALL_SRC))
+SCENES := scenes
 INC := -Ideps -Isrc -Ibuild
 BIN := build
-TARGETS := $(foreach file,$(foreach src,$(wildcard $(SRC)/*.c),$(notdir $(src))),$(patsubst %.c,$(BIN)/%.$(LIBEXT),$(file)))
+TARGETS := $(foreach file,$(foreach src,$(wildcard $(SCENES)/*.c),$(notdir $(src))),$(patsubst %.c,$(BIN)/%.$(LIBEXT),$(file)))
 
 .PHONY: FORCE scenes
 
 FORCE: ;
 
-$(BIN)/%.$(LIBEXT): $(SRC)/%.c FORCE | $(BIN)
-	$(CC) $(INC) -shared -fpic $(CFLAGS) src/*.c $(LINK) -o $@ $<
+$(BIN)/%.$(LIBEXT): $(SCENES)/%.c FORCE | $(BIN)
+	$(CC) $(INC) -shared -fpic -DFWT_SCENE $(CFLAGS) $(SRC) $(LINK) -o $@ $<
 
 scenes: $(TARGETS)
 
-program:
-	$(CC) $(INC) $(CFLAGS) src/*.c $(LINK) -o $(BIN)/fwp$(PROGEXT)
+program: shader
+	$(CC) $(INC) $(CFLAGS) $(ALL_SRC) $(LINK) -o $(BIN)/fwp$(PROGEXT)
 
 all: shader scenes program
 

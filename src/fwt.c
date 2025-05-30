@@ -17,8 +17,9 @@
  You should have received a copy of the GNU General Public License
  along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
-#define HANDMADE_MATH_IMPLEMENTATION
+#ifndef FWT_SCENE
 #define SOKOL_IMPL
+#endif
 #include "internal.h"
 
 #if defined(PLATFORM_WINDOWS)
@@ -41,44 +42,8 @@
 #include <sys/stat.h>
 #include <dlfcn.h>
 #endif
-#ifdef PLATFORM_MAC
-#include <Cocoa/Cocoa.h>
-#endif
 
-int fwtFrameBufferWidth(void) {
-    return sapp_width() * (int)fwtFrameBufferScaleFactor();
-}
-
-int fwtFrameBufferHeight(void) {
-    return sapp_height() * (int)fwtFrameBufferScaleFactor();
-}
-
-float fwtFrameBufferWidthf(void) {
-    return sapp_widthf() * fwtFrameBufferScaleFactor();
-}
-
-float fwtFrameBufferHeightf(void) {
-    return sapp_heightf() * fwtFrameBufferScaleFactor();
-}
-
-float fwtFrameBufferScaleFactor(void) {
-#ifdef __APPLE__
-    return [[NSScreen mainScreen] backingScaleFactor];
-#else
-    return 1.f; // I don't know if this is a thing for Windows/Linux so return 1
-#endif
-}
-
-fwt_t fwt = {
-    .running = 0,
-    .mouse_hidden = 0,
-    .mouse_locked = 0,
-    .app_desc = (sapp_desc) {
-        .width = DEFAULT_WINDOW_WIDTH,
-        .height = DEFAULT_WINDOW_WIDTH,
-        .window_title = DEFAULT_WINDOW_TITLE
-    }
-};
+extern fwt_t fwt;
 
 static struct {
 #if defined(PLATFORM_WINDOWS)
@@ -96,99 +61,6 @@ static struct {
         char *path;
     } args;
 } state;
-
-hmm_mat4* fwt_matrix_stack_head(int mode) {
-    assert(mode >= 0 && mode < FWT_MATRIXMODE_COUNT);
-    fwt_matrix_stack_t *stack = &fwt.state.matrix_stack[mode];
-    return stack->count ? &stack->stack[stack->count-1] : NULL;
-}
-
-hmm_mat4* fwt_current_matrix(void) {
-    return fwt_matrix_stack_head(fwt.state.matrix_mode);
-}
-
-void fwt_set_current_matrix(hmm_mat4 mat) {
-    hmm_mat4 *head = fwt_current_matrix();
-    *head = mat;
-}
-
-void fwt_push_vertex(void) {
-    fwt.state.draw_call.vertices = realloc(fwt.state.draw_call.vertices, ++fwt.state.draw_call.vcount * sizeof(fwt_vertex_t));
-    memcpy(&fwt.state.draw_call.vertices[fwt.state.draw_call.vcount-1], &fwt.state.current_vertex, sizeof(fwt_vertex_t));
-}
-
-void fwt_push_command(int type, void *data) {
-    fwt_command_t *command = malloc(sizeof(fwt_command_t));
-    command->type = type;
-    command->data = data;
-    command->next = NULL;
-
-    if (!fwt.commands.head && !fwt.commands.tail)
-        fwt.commands.head = fwt.commands.tail = command;
-    else {
-        fwt.commands.tail->next = command;
-        fwt.commands.tail = command;
-    }
-}
-
-void fwtSetWindowSize(int width, int height) {
-    if (!fwt.running) {
-        if (width)
-            fwt.app_desc.width = width;
-        if (height)
-            fwt.app_desc.height = height;
-    }
-}
-
-void fwtSetWindowTitle(const char *title) {
-    if (fwt.running)
-        sapp_set_window_title(title);
-    else
-        fwt.app_desc.window_title = title;
-}
-
-int fwtWindowWidth(void) {
-    return fwt.running ? sapp_width() : -1;
-}
-
-int fwtWindowHeight(void) {
-    return fwt.running ? sapp_height() : -1;
-}
-
-float fwtWindowAspectRatio(void) {
-    return sapp_widthf() / sapp_heightf();
-}
-
-int fwtIsWindowFullscreen(void) {
-    return fwt.running ? sapp_is_fullscreen() : fwt.app_desc.fullscreen;
-}
-
-void fwtToggleFullscreen(void) {
-    if (!fwt.running)
-        fwt.app_desc.fullscreen = !fwt.app_desc.fullscreen;
-    else
-        sapp_toggle_fullscreen();
-}
-
-int fwtIsCursorVisible(void) {
-    return fwt.running ? sapp_mouse_shown() : fwt.mouse_hidden;
-}
-
-void fwtToggleCursorVisible(void) {
-    if (fwt.running)
-        sapp_show_mouse(!fwt.mouse_hidden);
-    fwt.mouse_hidden = !fwt.mouse_hidden;
-}
-
-int fwtIsCursorLocked(void) {
-    return fwt.running? sapp_mouse_locked() : fwt.mouse_locked;
-}
-
-void fwtToggleCursorLock(void) {
-    if (fwt.running)
-        sapp_lock_mouse(!fwt.mouse_locked);
-    fwt.mouse_locked = !fwt.mouse_locked;
-}
 
 static void init(void) {
     sg_desc desc = {

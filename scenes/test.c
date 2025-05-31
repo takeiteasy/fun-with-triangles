@@ -47,7 +47,7 @@ struct fwtState {
 };
 
 static fwtState* init(void) {
-    fwtSetWorkingDir("../etc"); // TODO: virtual file system
+    fwtSetWorkingDir("etc"); // TODO: virtual file system
     // TODO: Port vfs to fun-with-pixels too
     fwtState *state = malloc(sizeof(fwtState));
     state->pear_texture = fwtLoadTexturePath("pear.jpg");

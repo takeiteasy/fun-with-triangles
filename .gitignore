@@ -4,3 +4,4 @@ build/
 *.plist
 bin/
 .cache/
+compile_commands.json

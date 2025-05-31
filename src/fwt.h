@@ -30,20 +30,6 @@ extern "C" {
 #include <stdarg.h>
 #include <string.h>
 
-#define PLATFORM_POSIX
-#if defined(__APPLE__) || defined(__MACH__)
-#define PLATFORM_MAC
-#elif defined(_WIN32) || defined(_WIN64)
-#define PLATFORM_WINDOWS
-#if !defined(PLATFORM_FORCE_POSIX)
-#undef PLATFORM_POSIX
-#endif
-#elif defined(__gnu_linux__) || defined(__linux__) || defined(__unix__)
-#define PLATFORM_LINUX
-#else
-#error Unknown platform
-#endif
-
 #ifndef N_ARGS
 #define N_ARGS(...) _NARG_(__VA_ARGS__, _RSEQ())
 #define _NARG_(...) _SEQ(__VA_ARGS__)

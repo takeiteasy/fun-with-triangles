@@ -1,4 +1,4 @@
-/* shared.c -- https://github.com/takeiteasy/fun-with-triangles
+/* sokol.c -- https://github.com/takeiteasy/fun-with-triangles
 
  fun-with-triangles
 
@@ -17,15 +17,10 @@
  You should have received a copy of the GNU General Public License
  along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
-#include "internal.h"
-
-fwt_t fwt = {
-    .running = 0,
-    .mouse_hidden = 0,
-    .mouse_locked = 0,
-    .app_desc = (sapp_desc) {
-        .width = DEFAULT_WINDOW_WIDTH,
-        .height = DEFAULT_WINDOW_WIDTH,
-        .window_title = DEFAULT_WINDOW_TITLE
-    }
-};
+#define SOKOL_IMPL
+#define SOKOL_NO_ENTRY
+#include "sokol/sokol_gfx.h"
+#include "sokol/sokol_app.h"
+#include "sokol/sokol_glue.h"
+#include "sokol/sokol_time.h"
+#include "sokol/sokol_log.h"

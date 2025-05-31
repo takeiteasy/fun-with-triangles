@@ -5,7 +5,7 @@
       "-c",
       "-Ideps",
       "-Isrc",
-      "-Ibuild",
+      "-fpic",
       "-x",
       "objective-c",
       "-DSOKOL_METAL",
@@ -19,12 +19,12 @@
       "-framework",
       "Quartz",
       "-o",
-      "build/fwp",
-      "src/draw.c"
+      "build/libsokol.dylib",
+      "src/sokol.c"
     ],
     "directory": "/Users/george/git/fun-with-triangles",
-    "file": "/Users/george/git/fun-with-triangles/src/draw.c",
-    "output": "/Users/george/git/fun-with-triangles/build/fwp"
+    "file": "/Users/george/git/fun-with-triangles/src/sokol.c",
+    "output": "/Users/george/git/fun-with-triangles/build/libsokol.dylib"
   },
   {
     "arguments": [
@@ -32,7 +32,7 @@
       "-c",
       "-Ideps",
       "-Isrc",
-      "-Ibuild",
+      "-fpic",
       "-x",
       "objective-c",
       "-DSOKOL_METAL",
@@ -46,12 +46,12 @@
       "-framework",
       "Quartz",
       "-o",
-      "build/fwp",
+      "build/template.dylib",
       "src/fwt.c"
     ],
     "directory": "/Users/george/git/fun-with-triangles",
     "file": "/Users/george/git/fun-with-triangles/src/fwt.c",
-    "output": "/Users/george/git/fun-with-triangles/build/fwp"
+    "output": "/Users/george/git/fun-with-triangles/build/template.dylib"
   },
   {
     "arguments": [
@@ -59,7 +59,7 @@
       "-c",
       "-Ideps",
       "-Isrc",
-      "-Ibuild",
+      "-fpic",
       "-x",
       "objective-c",
       "-DSOKOL_METAL",
@@ -73,12 +73,12 @@
       "-framework",
       "Quartz",
       "-o",
-      "build/fwp",
-      "src/input.c"
+      "build/template.dylib",
+      "scenes/template.c"
     ],
     "directory": "/Users/george/git/fun-with-triangles",
-    "file": "/Users/george/git/fun-with-triangles/src/input.c",
-    "output": "/Users/george/git/fun-with-triangles/build/fwp"
+    "file": "/Users/george/git/fun-with-triangles/scenes/template.c",
+    "output": "/Users/george/git/fun-with-triangles/build/template.dylib"
   },
   {
     "arguments": [
@@ -86,7 +86,7 @@
       "-c",
       "-Ideps",
       "-Isrc",
-      "-Ibuild",
+      "-fpic",
       "-x",
       "objective-c",
       "-DSOKOL_METAL",
@@ -100,11 +100,65 @@
       "-framework",
       "Quartz",
       "-o",
-      "build/fwp",
-      "src/vfs.c"
+      "build/test.dylib",
+      "src/fwt.c"
     ],
     "directory": "/Users/george/git/fun-with-triangles",
-    "file": "/Users/george/git/fun-with-triangles/src/vfs.c",
-    "output": "/Users/george/git/fun-with-triangles/build/fwp"
+    "file": "/Users/george/git/fun-with-triangles/src/fwt.c",
+    "output": "/Users/george/git/fun-with-triangles/build/test.dylib"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-Ideps",
+      "-Isrc",
+      "-fpic",
+      "-x",
+      "objective-c",
+      "-DSOKOL_METAL",
+      "-fobjc-arc",
+      "-framework",
+      "Metal",
+      "-framework",
+      "Cocoa",
+      "-framework",
+      "MetalKit",
+      "-framework",
+      "Quartz",
+      "-o",
+      "build/test.dylib",
+      "scenes/test.c"
+    ],
+    "directory": "/Users/george/git/fun-with-triangles",
+    "file": "/Users/george/git/fun-with-triangles/scenes/test.c",
+    "output": "/Users/george/git/fun-with-triangles/build/test.dylib"
+  },
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-Ideps",
+      "-Isrc",
+      "-x",
+      "objective-c",
+      "-DSOKOL_METAL",
+      "-fobjc-arc",
+      "-framework",
+      "Metal",
+      "-framework",
+      "Cocoa",
+      "-framework",
+      "MetalKit",
+      "-framework",
+      "Quartz",
+      "-DFWT_MAIN_PROGRAM",
+      "-o",
+      "build/fwt",
+      "src/fwt.c"
+    ],
+    "directory": "/Users/george/git/fun-with-triangles",
+    "file": "/Users/george/git/fun-with-triangles/src/fwt.c",
+    "output": "/Users/george/git/fun-with-triangles/build/fwt"
   }
 ]

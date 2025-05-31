@@ -11,18 +11,19 @@ else
 	endif
 endif
 
-INCLUDE=-Ideps -Isrc -Ibuild
-SHDC_PATH=bin/$(ARCH)/sokol-shdc$(PROG_EXT)
-
 default: program
 
-shader:
-	$(SHDC_PATH) -i etc/default.glsl -o src/fwt.glsl.h -l $(SHDC_FLAGS)
+SHDC_PATH=bin/$(ARCH)/sokol-shdc$(PROG_EXT)
 
-ALL_SRC := $(wildcard src/*.c)
-SRC := $(filter-out src/fwt.c, $(ALL_SRC))
+shader:
+	$(SHDC_PATH) -i etc/shader.glsl -o src/shader.glsl.h -l $(SHDC_FLAGS)
+
+sokol:
+	$(CC) $(INC) -shared -fpic $(CFLAGS) src/sokol.c $(LINK) -o $(BIN)/libsokol.$(LIBEXT)
+
+SRC := src/fwt.c
 SCENES := scenes
-INC := -Ideps -Isrc -Ibuild
+INC := -Ideps -Isrc -Lbuild
 BIN := build
 TARGETS := $(foreach file,$(foreach src,$(wildcard $(SCENES)/*.c),$(notdir $(src))),$(patsubst %.c,$(BIN)/%.$(LIBEXT),$(file)))
 
@@ -31,13 +32,13 @@ TARGETS := $(foreach file,$(foreach src,$(wildcard $(SCENES)/*.c),$(notdir $(src
 FORCE: ;
 
 $(BIN)/%.$(LIBEXT): $(SCENES)/%.c FORCE | $(BIN)
-	$(CC) $(INC) -shared -fpic -DFWT_SCENE $(CFLAGS) $(SRC) $(LINK) -o $@ $<
+	$(CC) $(INC) -shared -fpic $(CFLAGS) $(SRC) $(LINK) -lsokol -o $@ $<
 
-scenes: $(TARGETS)
+scenes: sokol $(TARGETS)
 
-program: shader
-	$(CC) $(INC) $(CFLAGS) $(ALL_SRC) $(LINK) -o $(BIN)/fwp$(PROGEXT)
+program: sokol shader
+	$(CC) $(INC) $(CFLAGS) -DFWT_MAIN_PROGRAM $(SRC) $(LINK) -lsokol -o $(BIN)/fwt$(PROGEXT)
 
 all: shader scenes program
 
-.PHONY: default all scenes program shader
+.PHONY: default all sokol scenes program shader

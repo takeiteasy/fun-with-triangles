@@ -1,7 +1,7 @@
 # fun-with-triangles
 
 > [!WARNING]
-> Work in progress
+> Abandoned
 
 ## TODO
 

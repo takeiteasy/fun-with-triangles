@@ -23,21 +23,123 @@
  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#define BLA_IMPLEMENTATION
 #define SOKOL_IMPL
-#define JIM_IMPLEMENTATION
-#define MJSON_IMPLEMENTATION
-#define QOI_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
-#define DMON_IMPL
 #include "fwt.h"
+#include "sokol_args.h"
+#include "sokol_time.h"
+#define JIM_IMPLEMENTATION
+#include "jim.h"
+#define MJSON_IMPLEMENTATION
+#include "mjson.h"
+#define DMON_IMPL
+#include "dmon.h"
+#define QOI_IMPLEMENTATION
+#include "qoi.h"
+#define STB_NO_GIF
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+#define TABLE_IMPLEMENTATION
+#include "table.h"
+#define GARRY_IMPLEMENTATION
+#include "garry.h"
 #if defined(FWT_WINDOW)
 #include "dirent_win32.h"
 #include "dlfcn_win32.h"
 #include "dlfcn_win32.c"
-#else
-#include <dirent.h>
-#include <dlfcn.h>
 #endif
+
+static const char* ToLower(const char *str, int length) {
+    if (!length)
+        length = (int)strlen(str);
+    assert(length);
+    char *result = malloc(sizeof(char) * length);
+    for (int i = 0; i < length; i++) {
+        char c = str[i];
+        result[i] = isalpha(c) && isupper(c) ? tolower(c) : c;
+    }
+    return result;
+}
+
+static bool IsFile(const char *path) {
+    struct stat st;
+    assert(stat(path, &st) != -1);
+    return S_ISREG(st.st_mode);
+}
+
+static int CountFilesInDir(const char *path) {
+    int result = 0;
+    char full[MAX_PATH];
+    DIR *dir = opendir(path);
+    assert(dir);
+    struct dirent *ent;
+    while ((ent = readdir(dir))) {
+        sprintf(full, "%s%s", path, ent->d_name);
+        if (IsFile(full))
+            result++;
+        full[0] = '\0';
+    }
+    closedir(dir);
+    return result;
+}
+
+static const char** GetFilesInDir(const char *path, int *count_out) {
+    int count = CountFilesInDir(path);
+    const char** result = malloc(sizeof(char*) * count);
+    int index = 0;
+    char full[MAX_PATH];
+    DIR *dir = opendir(path);
+    assert(dir);
+    struct dirent *ent;
+    while ((ent = readdir(dir))) {
+        sprintf(full, "%s%s", path, ent->d_name);
+        if (IsFile(full))
+            result[index++] = ent->d_name;
+        full[0] = '\0';
+    }
+    closedir(dir);
+    if (count_out)
+        *count_out = count;
+    for (int i = 0; i < count; i++)
+        printf("%s\n", result[i]);
+    return result;
+}
+
+static void AssetWatchCallback(dmon_watch_id watch_id,
+                               dmon_action action,
+                               const char* rootdir,
+                               const char* filepath,
+                               const char* oldfilepath,
+                               void* user) {
+//    if (DoesFileExist(FWT_ASSETS_PATH_OUT))
+//        remove(FWT_ASSETS_PATH_OUT);
+
+    // TODO: Check if file exists inside map
+    // TODO: Compare file hashes
+
+    switch (action) {
+        case DMON_ACTION_CREATE:
+            break;
+        case DMON_ACTION_DELETE:
+            break;
+        case DMON_ACTION_MODIFY:
+            break;
+        case DMON_ACTION_MOVE:
+            break;
+    }
+    return;
+
+    int count = 0;
+#if defined(FWT_POSIX)
+    const char **files = GetFilesInDir(rootdir, &count);
+#else
+    char appended[MAX_PATH];
+    memcpy(appended, rootdir, strlen(rootdir) * sizeof(char));
+    const char **files = GetFilesInDir(appended, &count);
+#endif
+    assert(count);
+    free(files);
+}
 
 #if !defined(FWT_SCENE)
 static fwtTexture* NewTexture(sg_image_desc *desc) {
@@ -131,97 +233,6 @@ fwtState state = {
     }
 };
 #endif
-
-//-----------------------------------------------------------------------------
-// MurmurHash3 was written by Austin Appleby, and is placed in the public
-// domain. The author hereby disclaims copyright to this source code.
-//-----------------------------------------------------------------------------
-static void MM86128(const void *key, const int len, uint32_t seed, void *out) {
-#define ROTL32(x, r) ((x << r) | (x >> (32 - r)))
-#define FMIX32(h) h^=h>>16; h*=0x85ebca6b; h^=h>>13; h*=0xc2b2ae35; h^=h>>16;
-    const uint8_t * data = (const uint8_t*)key;
-    const int nblocks = len / 16;
-    uint32_t h1 = seed;
-    uint32_t h2 = seed;
-    uint32_t h3 = seed;
-    uint32_t h4 = seed;
-    uint32_t c1 = 0x239b961b;
-    uint32_t c2 = 0xab0e9789;
-    uint32_t c3 = 0x38b34ae5;
-    uint32_t c4 = 0xa1e38b93;
-    const uint32_t * blocks = (const uint32_t *)(data + nblocks*16);
-    for (int i = -nblocks; i; i++) {
-        uint32_t k1 = blocks[i*4+0];
-        uint32_t k2 = blocks[i*4+1];
-        uint32_t k3 = blocks[i*4+2];
-        uint32_t k4 = blocks[i*4+3];
-        k1 *= c1; k1  = ROTL32(k1,15); k1 *= c2; h1 ^= k1;
-        h1 = ROTL32(h1,19); h1 += h2; h1 = h1*5+0x561ccd1b;
-        k2 *= c2; k2  = ROTL32(k2,16); k2 *= c3; h2 ^= k2;
-        h2 = ROTL32(h2,17); h2 += h3; h2 = h2*5+0x0bcaa747;
-        k3 *= c3; k3  = ROTL32(k3,17); k3 *= c4; h3 ^= k3;
-        h3 = ROTL32(h3,15); h3 += h4; h3 = h3*5+0x96cd1c35;
-        k4 *= c4; k4  = ROTL32(k4,18); k4 *= c1; h4 ^= k4;
-        h4 = ROTL32(h4,13); h4 += h1; h4 = h4*5+0x32ac3b17;
-    }
-    const uint8_t * tail = (const uint8_t*)(data + nblocks*16);
-    uint32_t k1 = 0;
-    uint32_t k2 = 0;
-    uint32_t k3 = 0;
-    uint32_t k4 = 0;
-    switch(len & 15) {
-        case 15:
-            k4 ^= tail[14] << 16;
-        case 14:
-            k4 ^= tail[13] << 8;
-        case 13:
-            k4 ^= tail[12] << 0;
-            k4 *= c4; k4  = ROTL32(k4,18); k4 *= c1; h4 ^= k4;
-        case 12:
-            k3 ^= tail[11] << 24;
-        case 11:
-            k3 ^= tail[10] << 16;
-        case 10:
-            k3 ^= tail[ 9] << 8;
-        case 9:
-            k3 ^= tail[ 8] << 0;
-            k3 *= c3; k3  = ROTL32(k3,17); k3 *= c4; h3 ^= k3;
-        case 8:
-            k2 ^= tail[ 7] << 24;
-        case 7:
-            k2 ^= tail[ 6] << 16;
-        case 6:
-            k2 ^= tail[ 5] << 8;
-        case 5:
-            k2 ^= tail[ 4] << 0;
-            k2 *= c2; k2  = ROTL32(k2,16); k2 *= c3; h2 ^= k2;
-        case 4:
-            k1 ^= tail[ 3] << 24;
-        case 3:
-            k1 ^= tail[ 2] << 16;
-        case 2:
-            k1 ^= tail[ 1] << 8;
-        case 1:
-            k1 ^= tail[ 0] << 0;
-            k1 *= c1; k1  = ROTL32(k1,15); k1 *= c2; h1 ^= k1;
-    };
-    h1 ^= len; h2 ^= len; h3 ^= len; h4 ^= len;
-    h1 += h2; h1 += h3; h1 += h4;
-    h2 += h1; h3 += h1; h4 += h1;
-    FMIX32(h1); FMIX32(h2); FMIX32(h3); FMIX32(h4);
-    h1 += h2; h1 += h3; h1 += h4;
-    h2 += h1; h3 += h1; h4 += h1;
-    ((uint32_t*)out)[0] = h1;
-    ((uint32_t*)out)[1] = h2;
-    ((uint32_t*)out)[2] = h3;
-    ((uint32_t*)out)[3] = h4;
-}
-
-static uint64_t MurmurHash(const void *data, size_t len, uint32_t seed) {
-    char out[16];
-    MM86128(data, (int)len, (uint32_t)seed, &out);
-    return *(uint64_t*)out;
-}
 
 typedef enum {
     fwtCommandProject,
@@ -1350,98 +1361,6 @@ static int ParseArguments(int argc, char *argv[]) {
 
 // MARK: Program loop
 
-static const char* ToLower(const char *str, int length) {
-    if (!length)
-        length = (int)strlen(str);
-    assert(length);
-    char *result = malloc(sizeof(char) * length);
-    for (int i = 0; i < length; i++) {
-        char c = str[i];
-        result[i] = isalpha(c) && isupper(c) ? tolower(c) : c;
-    }
-    return result;
-}
-
-static bool IsFile(const char *path) {
-    struct stat st;
-    assert(stat(path, &st) != -1);
-    return S_ISREG(st.st_mode);
-}
-
-static int CountFilesInDir(const char *path) {
-    int result = 0;
-    char full[MAX_PATH];
-    DIR *dir = opendir(path);
-    assert(dir);
-    struct dirent *ent;
-    while ((ent = readdir(dir))) {
-        sprintf(full, "%s%s", path, ent->d_name);
-        if (IsFile(full))
-            result++;
-        full[0] = '\0';
-    }
-    closedir(dir);
-    return result;
-}
-
-static const char** GetFilesInDir(const char *path, int *count_out) {
-    int count = CountFilesInDir(path);
-    const char** result = malloc(sizeof(char*) * count);
-    int index = 0;
-    char full[MAX_PATH];
-    DIR *dir = opendir(path);
-    assert(dir);
-    struct dirent *ent;
-    while ((ent = readdir(dir))) {
-        sprintf(full, "%s%s", path, ent->d_name);
-        if (IsFile(full))
-            result[index++] = ent->d_name;
-        full[0] = '\0';
-    }
-    closedir(dir);
-    if (count_out)
-        *count_out = count;
-    for (int i = 0; i < count; i++)
-        printf("%s\n", result[i]);
-    return result;
-}
-
-static void AssetWatchCallback(dmon_watch_id watch_id,
-                               dmon_action action,
-                               const char* rootdir,
-                               const char* filepath,
-                               const char* oldfilepath,
-                               void* user) {
-//    if (DoesFileExist(FWT_ASSETS_PATH_OUT))
-//        remove(FWT_ASSETS_PATH_OUT);
-
-    // TODO: Check if file exists inside map
-    // TODO: Compare file hashes
-
-    switch (action) {
-        case DMON_ACTION_CREATE:
-            break;
-        case DMON_ACTION_DELETE:
-            break;
-        case DMON_ACTION_MODIFY:
-            break;
-        case DMON_ACTION_MOVE:
-            break;
-    }
-    return;
-
-    int count = 0;
-#if defined(FWT_POSIX)
-    const char **files = GetFilesInDir(rootdir, &count);
-#else
-    char appended[MAX_PATH];
-    memcpy(appended, rootdir, strlen(rootdir) * sizeof(char));
-    const char **files = GetFilesInDir(appended, &count);
-#endif
-    assert(count);
-    free(files);
-}
-
 static void InitCallback(void) {
     sg_desc desc = (sg_desc) {
         // TODO: Add more configuration options for sg_desc
@@ -1582,7 +1501,6 @@ static void CleanupCallback(void) {
     state.running = false;
     if (state.libraryScene->deinit)
         state.libraryScene->deinit(&state, state.libraryContext);
-    ezEcsFreeWorld(&state.world);
 #if !defined(FWT_DISABLE_HOTRELOAD)
     dmon_deinit();
 #endif

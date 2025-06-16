@@ -49,7 +49,7 @@ extern "C" {
 #error "Unsupported operating system"
 #endif
 
-#if defined(PP_WINDOWS) && !defined(PP_NO_EXPORT)
+#if defined(FWT_WINDOWS) && !defined(FWT_NO_EXPORT)
 #define EXPORT __declspec(dllexport)
 #else
 #define EXPORT
@@ -84,9 +84,6 @@ typedef enum bool {
 #include <setjmp.h>
 #include <errno.h>
 #include <assert.h>
-#if defined(FWT_MAC)
-#include <mach/mach_time.h>
-#endif
 #if defined(FWT_POSIX)
 #include <unistd.h>
 #include <sys/types.h>
@@ -99,22 +96,14 @@ typedef enum bool {
 #pragma comment(lib, "Psapi.lib")
 #endif
 #endif
-
+#include "bla.h"
 #include "sokol_gfx.h"
 #include "sokol_app.h"
 #include "sokol_glue.h"
+#include "sokol_gp.h"
 #if defined(FWT_SCENE) && defined(SOKOL_IMPL)
 #undef SOKOL_IMPL
 #endif
-#include "sokol_args.h"
-#include "sokol_time.h"
-#include "sokol_gp.h"
-#include "jim.h"
-#include "mjson.h"
-#include "dmon.h"
-#include "qoi.h"
-#define STB_NO_GIF
-#include "stb_image.h"
 
 #include "fwt_config.h"
 
@@ -197,8 +186,9 @@ typedef sapp_event_type fwtEventType;
 #endif
 
 typedef struct fwtVertex {
-    Vec2f position, texcoord;
-    Vec4f color;
+    vec2 position;
+    vec2 texcoord;
+    vec4 color;
 } fwtVertex;
 
 typedef struct fwtRect {

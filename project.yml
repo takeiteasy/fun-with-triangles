@@ -17,15 +17,17 @@ targets:
     type: tool
     platform: macOS
     sources:
+        - path: src/
         - path: etc/
           type: folder
         - path: build/
           type: folder
+        - path: assets/
+          type: folder
         - path: Makefile
         - path: project.yml
         - path: README.md
-        - path: scenes/config.h
-        - path: src/
+        - path: scenes/fwt_config.h
         - path: deps/
           type: folder
     dependencies:
@@ -38,7 +40,7 @@ targets:
         - sdk: IOKit.framework
     settings:
         HEADER_SEARCH_PATHS: [$(PROJECT_DIR)/deps, $(PROJECT_DIR)/scenes]
-        OTHER_CFLAGS: ["-x objective-c", -DSOKOL_METAL, -fno-objc-arc]
+        OTHER_CFLAGS: [-DSOKOL_METAL, -fno-objc-arc, -fenable-matrix, -x objective-c]
   test:
     type: library.dynamic
     platform: macOS
@@ -47,4 +49,4 @@ targets:
         - path: src/
     settings:
         HEADER_SEARCH_PATHS: [$(PROJECT_DIR)/deps, $(PROJECT_DIR)/scenes]
-        OTHER_CFLAGS: ["-x objective-c", -DSOKOL_METAL, -fno-objc-arc, -DSOKOL_NO_ENTRY, -DLURK_SCENE]
+        OTHER_CFLAGS: [-DSOKOL_METAL, -DSOKOL_NO_ENTRY, -x objective-c, -fno-objc-arc, -fenable-matrix, -DFWT_SCENE]

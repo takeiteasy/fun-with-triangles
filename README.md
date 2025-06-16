@@ -17,6 +17,7 @@
     - [ ] Lights
 - [ ] Audio
 - [ ] Fonts
+- [ ] FPS limitter
 
 ## Libraries used
 

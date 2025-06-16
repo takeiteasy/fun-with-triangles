@@ -1,3 +1,0 @@
-[submodule "lurk/deps/ez"]
-	path = lurk/deps/ez
-	url = git@github.com:takeiteasy/ez.git

@@ -1,10 +1,10 @@
-name: lurk
+name: fun-with-triangles
 
 options:
   bundleIdPrefix: io.github.takeiteasy
   createIntermediateGroups: true
   deploymentTarget:
-    macOS: "12.0"
+    macOS: "15.0"
 
 settings:
   CLANG_CXX_LANGUAGE_STANDARD: c++11
@@ -13,11 +13,11 @@ settings:
   CLANG_WARN_DOCUMENTATION_COMMENTS: false
 
 targets:
-  lurk:
+  fwt:
     type: tool
     platform: macOS
     sources:
-        - path: tools/
+        - path: etc/
           type: folder
         - path: build/
           type: folder
@@ -25,13 +25,9 @@ targets:
         - path: project.yml
         - path: README.md
         - path: scenes/config.h
-        - path: lurk/
-          excludes:
-            - "deps/"
-        - path: lurk/deps/
+        - path: src/
+        - path: deps/
           type: folder
-        - path: lurk/deps/gamepad/Gamepad_private.c
-        - path: lurk/deps/gamepad/Gamepad_macosx.c
     dependencies:
         - sdk: Cocoa.framework
         - sdk: Metal.framework
@@ -41,16 +37,14 @@ targets:
         - sdk: CoreFoundation.framework
         - sdk: IOKit.framework
     settings:
-        HEADER_SEARCH_PATHS: [$(PROJECT_DIR)/lurk, $(PROJECT_DIR)/lurk/deps, $(PROJECT_DIR)/scenes]
-        OTHER_CFLAGS: ["-x objective-c", -DSOKOL_METAL, -fno-objc-arc, -fenable-matrix]
+        HEADER_SEARCH_PATHS: [$(PROJECT_DIR)/deps, $(PROJECT_DIR)/scenes]
+        OTHER_CFLAGS: ["-x objective-c", -DSOKOL_METAL, -fno-objc-arc]
   test:
     type: library.dynamic
     platform: macOS
     sources:
         - path: scenes/test.c
-        - path: lurk/
-          excludes:
-            - "deps/"
+        - path: src/
     settings:
-        HEADER_SEARCH_PATHS: [$(PROJECT_DIR)/lurk, $(PROJECT_DIR)/lurk/deps, $(PROJECT_DIR)/scenes]
-        OTHER_CFLAGS: ["-x objective-c", -DSOKOL_METAL, -fno-objc-arc, -fenable-matrix, -DSOKOL_NO_ENTRY, -DLURK_SCENE]
+        HEADER_SEARCH_PATHS: [$(PROJECT_DIR)/deps, $(PROJECT_DIR)/scenes]
+        OTHER_CFLAGS: ["-x objective-c", -DSOKOL_METAL, -fno-objc-arc, -DSOKOL_NO_ENTRY, -DLURK_SCENE]

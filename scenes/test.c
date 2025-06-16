@@ -1,6 +1,6 @@
-#include "lurk.h"
+#include "fwt.h"
 
-struct lurkContext {
+struct fwtContext {
     uint64_t texture;
 };
 
@@ -8,42 +8,42 @@ typedef struct {
     int dummy;
 } TestComponent;
 
-static lurkContext* init(lurkState* state) {
-    lurkContext *result = malloc(sizeof(struct lurkContext));
-    result->texture = lurkFindTexture(state, "test2.png");
+static fwtContext* init(fwtState* state) {
+    fwtContext *result = malloc(sizeof(struct fwtContext));
+    result->texture = fwtFindTexture(state, "test2.png");
     return result;
 }
 
-static void deinit(lurkState* state, lurkContext *context) {
+static void deinit(fwtState* state, fwtContext *context) {
     free(context);
 }
 
-static void reload(lurkState* state, lurkContext *context) {
+static void reload(fwtState* state, fwtContext *context) {
 
 }
 
-static void unload(lurkState* state, lurkContext *context) {
+static void unload(fwtState* state, fwtContext *context) {
 
 }
 
-static void event(lurkState* state, lurkContext *context, lurkEventType event) {
+static void event(fwtState* state, fwtContext *context, fwtEventType event) {
 
 }
 
-static void frame(lurkState* state, lurkContext *context, float delta) {
+static void frame(fwtState* state, fwtContext *context, float delta) {
     int width, height;
-    lurkWindowSize(state, &width, &height);
+    fwtWindowSize(state, &width, &height);
     float ratio = (float)width / (float)height;
-    lurkViewport(state, 0, 0, width, height);
-    lurkProject(state, -ratio, ratio, 1.f, -1.f);
-    lurkSetColor(state, 1.f, 0.f, 0.f, 1.f);
-    lurkClear(state);
+    fwtViewport(state, 0, 0, width, height);
+    fwtProject(state, -ratio, ratio, 1.f, -1.f);
+    fwtSetColor(state, 1.f, 0.f, 0.f, 1.f);
+    fwtClear(state);
 
-    lurkSetColor(state, 0.f, 0.f, 0.f, 1.f);
-    lurkDrawFilledRect(state, -.5f, -.5f, 1.f, 1.f);
+    fwtSetColor(state, 0.f, 0.f, 0.f, 1.f);
+    fwtDrawFilledRect(state, -.5f, -.5f, 1.f, 1.f);
 }
 
-EXPORT const lurkScene scene = {
+EXPORT const fwtScene scene = {
     .init = init,
     .deinit = deinit,
     .reload = reload,

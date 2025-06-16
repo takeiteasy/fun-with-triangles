@@ -1,4 +1,4 @@
-/* lurk.c -- https://github.com/takeiteasy/lurk
+/* fwt.c -- https://github.com/takeiteasy/fwt
 
  The MIT License (MIT)
 
@@ -26,31 +26,29 @@
 #define SOKOL_IMPL
 #define JIM_IMPLEMENTATION
 #define MJSON_IMPLEMENTATION
-#define HASHMAP_IMPL
 #define QOI_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define EZ_IMPLEMENTATION
-#define IMAP_IMPLEMENTATION
 #define DMON_IMPL
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#include "lurk.h"
-#pragma clang diagnostic pop
-#if defined(LURK_WINDOW)
+#include "fwt.h"
+#if defined(FWT_WINDOW)
 #include "dirent_win32.h"
+#include "dlfcn_win32.h"
+#include "dlfcn_win32.c"
+#else
+#include <dirent.h>
+#include <dlfcn.h>
 #endif
 
-#if !defined(LURK_SCENE)
-static lurkTexture* NewTexture(sg_image_desc *desc) {
-    lurkTexture *result = malloc(sizeof(lurkTexture));
+#if !defined(FWT_SCENE)
+static fwtTexture* NewTexture(sg_image_desc *desc) {
+    fwtTexture *result = malloc(sizeof(fwtTexture));
     result->internal = sg_make_image(desc);
     result->w = desc->width;
     result->h = desc->height;
     return result;
 }
 
-static lurkTexture* EmptyTexture(unsigned int w, unsigned int h) {
+static fwtTexture* EmptyTexture(unsigned int w, unsigned int h) {
     sg_image_desc desc = {
         .width = w,
         .height = h,
@@ -60,7 +58,7 @@ static lurkTexture* EmptyTexture(unsigned int w, unsigned int h) {
     return NewTexture(&desc);
 }
 
-static void DestroyTexture(lurkTexture *texture) {
+static void DestroyTexture(fwtTexture *texture) {
     if (texture) {
         if (sg_query_image_state(texture->internal) == SG_RESOURCESTATE_VALID)
             sg_destroy_image(texture->internal);
@@ -103,7 +101,7 @@ static int* LoadImage(unsigned char *data, int sizeOfData, int *w, int *h) {
     return buf;
 }
 
-static void UpdateTexture(lurkTexture *texture, int *data, int w, int h) {
+static void UpdateTexture(fwtTexture *texture, int *data, int w, int h) {
     if (texture->w != w || texture->h != h) {
         DestroyTexture(texture);
         texture = EmptyTexture(w, h);
@@ -117,7 +115,7 @@ static void UpdateTexture(lurkTexture *texture, int *data, int w, int h) {
     sg_update_image(texture->internal, &desc);
 }
 
-lurkState state = {
+fwtState state = {
     .running = false,
     .desc = (sapp_desc) {
 #define X(NAME, TYPE, VAL, DEFAULT, DOCS) .VAL = DEFAULT,
@@ -226,54 +224,54 @@ static uint64_t MurmurHash(const void *data, size_t len, uint32_t seed) {
 }
 
 typedef enum {
-    lurkCommandProject,
-    lurkCommandResetProject,
-    lurkCommandPushTransform,
-    lurkCommandPopTransform,
-    lurkCommandResetTransform,
-    lurkCommandTranslate,
-    lurkCommandRotate,
-    lurkCommandRotateAt,
-    lurkCommandScale,
-    lurkCommandScaleAt,
-    lurkCommandResetPipeline,
-    lurkCommandSetUniform,
-    lurkCommandResetUniform,
-    lurkCommandSetBlendMode,
-    lurkCommandResetBlendMode,
-    lurkCommandSetColor,
-    lurkCommandResetColor,
-    lurkCommandSetImage,
-    lurkCommandUnsetImage,
-    lurkCommandResetImage,
-    lurkCommandResetSampler,
-    lurkCommandViewport,
-    lurkCommandResetViewport,
-    lurkCommandScissor,
-    lurkCommandResetScissor,
-    lurkCommandResetState,
-    lurkCommandClear,
-    lurkCommandDrawPoints,
-    lurkCommandDrawPoint,
-    lurkCommandDrawLines,
-    lurkCommandDrawLine,
-    lurkCommandDrawLinesStrip,
-    lurkCommandDrawFilledTriangles,
-    lurkCommandDrawFilledTriangle,
-    lurkCommandDrawFilledTrianglesStrip,
-    lurkCommandDrawFilledRects,
-    lurkCommandDrawFilledRect,
-    lurkCommandDrawTexturedRects,
-    lurkCommandDrawTexturedRect,
-    lurkCommandCreateTexture
-} lurkCommandType;
+    fwtCommandProject,
+    fwtCommandResetProject,
+    fwtCommandPushTransform,
+    fwtCommandPopTransform,
+    fwtCommandResetTransform,
+    fwtCommandTranslate,
+    fwtCommandRotate,
+    fwtCommandRotateAt,
+    fwtCommandScale,
+    fwtCommandScaleAt,
+    fwtCommandResetPipeline,
+    fwtCommandSetUniform,
+    fwtCommandResetUniform,
+    fwtCommandSetBlendMode,
+    fwtCommandResetBlendMode,
+    fwtCommandSetColor,
+    fwtCommandResetColor,
+    fwtCommandSetImage,
+    fwtCommandUnsetImage,
+    fwtCommandResetImage,
+    fwtCommandResetSampler,
+    fwtCommandViewport,
+    fwtCommandResetViewport,
+    fwtCommandScissor,
+    fwtCommandResetScissor,
+    fwtCommandResetState,
+    fwtCommandClear,
+    fwtCommandDrawPoints,
+    fwtCommandDrawPoint,
+    fwtCommandDrawLines,
+    fwtCommandDrawLine,
+    fwtCommandDrawLinesStrip,
+    fwtCommandDrawFilledTriangles,
+    fwtCommandDrawFilledTriangle,
+    fwtCommandDrawFilledTrianglesStrip,
+    fwtCommandDrawFilledRects,
+    fwtCommandDrawFilledRect,
+    fwtCommandDrawTexturedRects,
+    fwtCommandDrawTexturedRect,
+    fwtCommandCreateTexture
+} fwtCommandType;
 
 typedef struct {
-    lurkCommandType type;
+    fwtCommandType type;
     void* data;
-} lurkCommand;
+} fwtCommand;
 
-static void PushCommand(lurkState* state, lurkCommand* command) {
+static void PushCommand(fwtState* state, fwtCommand* command) {
     ezStackAppend(&state->commandQueue, command->type, (void*)command);
 }
 
@@ -282,12 +280,12 @@ typedef struct {
     float right;
     float top;
     float bottom;
-} lurkProjectData;
+} fwtProjectData;
 
-void lurkProject(lurkState *state, float left, float right, float top, float bottom) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandProject;
-    lurkProjectData* cmdData = malloc(sizeof(lurkProjectData));
+void fwtProject(fwtState *state, float left, float right, float top, float bottom) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandProject;
+    fwtProjectData* cmdData = malloc(sizeof(fwtProjectData));
     cmdData->left = left;
     cmdData->right = right;
     cmdData->top = top;
@@ -296,30 +294,30 @@ void lurkProject(lurkState *state, float left, float right, float top, float bot
     PushCommand(state, cmd);
 }
 
-void lurkResetProject(lurkState *state) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandResetProject;
+void fwtResetProject(fwtState *state) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandResetProject;
     cmd->data = NULL;
     PushCommand(state, cmd);
 }
 
-void lurkPushTransform(lurkState *state) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandPushTransform;
+void fwtPushTransform(fwtState *state) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandPushTransform;
     cmd->data = NULL;
     PushCommand(state, cmd);
 }
 
-void lurkPopTransform(lurkState *state) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandPopTransform;
+void fwtPopTransform(fwtState *state) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandPopTransform;
     cmd->data = NULL;
     PushCommand(state, cmd);
 }
 
-void lurkResetTransform(lurkState *state) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandResetTransform;
+void fwtResetTransform(fwtState *state) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandResetTransform;
     cmd->data = NULL;
     PushCommand(state, cmd);
 }
@@ -327,12 +325,12 @@ void lurkResetTransform(lurkState *state) {
 typedef struct {
     float x;
     float y;
-} lurkTranslateData;
+} fwtTranslateData;
 
-void lurkTranslate(lurkState *state, float x, float y) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandTranslate;
-    lurkTranslateData* cmdData = malloc(sizeof(lurkTranslateData));
+void fwtTranslate(fwtState *state, float x, float y) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandTranslate;
+    fwtTranslateData* cmdData = malloc(sizeof(fwtTranslateData));
     cmdData->x = x;
     cmdData->y = y;
     cmd->data = cmdData;
@@ -341,12 +339,12 @@ void lurkTranslate(lurkState *state, float x, float y) {
 
 typedef struct {
     float theta;
-} lurkRotateData;
+} fwtRotateData;
 
-void lurkRotate(lurkState *state, float theta) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandRotate;
-    lurkRotateData* cmdData = malloc(sizeof(lurkRotateData));
+void fwtRotate(fwtState *state, float theta) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandRotate;
+    fwtRotateData* cmdData = malloc(sizeof(fwtRotateData));
     cmdData->theta = theta;
     cmd->data = cmdData;
     PushCommand(state, cmd);
@@ -356,12 +354,12 @@ typedef struct {
     float theta;
     float x;
     float y;
-} lurkRotateAtData;
+} fwtRotateAtData;
 
-void lurkRotateAt(lurkState *state, float theta, float x, float y) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandRotateAt;
-    lurkRotateAtData* cmdData = malloc(sizeof(lurkRotateAtData));
+void fwtRotateAt(fwtState *state, float theta, float x, float y) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandRotateAt;
+    fwtRotateAtData* cmdData = malloc(sizeof(fwtRotateAtData));
     cmdData->theta = theta;
     cmdData->x = x;
     cmdData->y = y;
@@ -372,12 +370,12 @@ void lurkRotateAt(lurkState *state, float theta, float x, float y) {
 typedef struct {
     float sx;
     float sy;
-} lurkScaleData;
+} fwtScaleData;
 
-void lurkScale(lurkState *state, float sx, float sy) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandScale;
-    lurkScaleData* cmdData = malloc(sizeof(lurkScaleData));
+void fwtScale(fwtState *state, float sx, float sy) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandScale;
+    fwtScaleData* cmdData = malloc(sizeof(fwtScaleData));
     cmdData->sx = sx;
     cmdData->sy = sy;
     cmd->data = cmdData;
@@ -389,12 +387,12 @@ typedef struct {
     float sy;
     float x;
     float y;
-} lurkScaleAtData;
+} fwtScaleAtData;
 
-void lurkScaleAt(lurkState *state, float sx, float sy, float x, float y) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandScaleAt;
-    lurkScaleAtData* cmdData = malloc(sizeof(lurkScaleAtData));
+void fwtScaleAt(fwtState *state, float sx, float sy, float x, float y) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandScaleAt;
+    fwtScaleAtData* cmdData = malloc(sizeof(fwtScaleAtData));
     cmdData->sx = sx;
     cmdData->sy = sy;
     cmdData->x = x;
@@ -403,9 +401,9 @@ void lurkScaleAt(lurkState *state, float sx, float sy, float x, float y) {
     PushCommand(state, cmd);
 }
 
-void lurkResetPipeline(lurkState *state) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandResetPipeline;
+void fwtResetPipeline(fwtState *state) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandResetPipeline;
     cmd->data = NULL;
     PushCommand(state, cmd);
 }
@@ -413,41 +411,41 @@ void lurkResetPipeline(lurkState *state) {
 typedef struct {
     void* data;
     int size;
-} lurkSetUniformData;
+} fwtSetUniformData;
 
-void lurkSetUniform(lurkState *state, void* data, int size) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandSetUniform;
-    lurkSetUniformData* cmdData = malloc(sizeof(lurkSetUniformData));
+void fwtSetUniform(fwtState *state, void* data, int size) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandSetUniform;
+    fwtSetUniformData* cmdData = malloc(sizeof(fwtSetUniformData));
     cmdData->data = data;
     cmdData->size = size;
     cmd->data = cmdData;
     PushCommand(state, cmd);
 }
 
-void lurkResetUniform(lurkState *state) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandResetUniform;
+void fwtResetUniform(fwtState *state) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandResetUniform;
     cmd->data = NULL;
     PushCommand(state, cmd);
 }
 
 typedef struct {
     sgp_blend_mode blend_mode;
-} lurkSetBlendModeData;
+} fwtSetBlendModeData;
 
-void lurkSetBlendMode(lurkState *state, sgp_blend_mode blend_mode) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandSetBlendMode;
-    lurkSetBlendModeData* cmdData = malloc(sizeof(lurkSetBlendModeData));
+void fwtSetBlendMode(fwtState *state, sgp_blend_mode blend_mode) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandSetBlendMode;
+    fwtSetBlendModeData* cmdData = malloc(sizeof(fwtSetBlendModeData));
     cmdData->blend_mode = blend_mode;
     cmd->data = cmdData;
     PushCommand(state, cmd);
 }
 
-void lurkResetBlendMode(lurkState *state) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandResetBlendMode;
+void fwtResetBlendMode(fwtState *state) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandResetBlendMode;
     cmd->data = NULL;
     PushCommand(state, cmd);
 }
@@ -457,12 +455,12 @@ typedef struct {
     float g;
     float b;
     float a;
-} lurkSetColorData;
+} fwtSetColorData;
 
-void lurkSetColor(lurkState *state, float r, float g, float b, float a) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandSetColor;
-    lurkSetColorData* cmdData = malloc(sizeof(lurkSetColorData));
+void fwtSetColor(fwtState *state, float r, float g, float b, float a) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandSetColor;
+    fwtSetColorData* cmdData = malloc(sizeof(fwtSetColorData));
     cmdData->r = r;
     cmdData->g = g;
     cmdData->b = b;
@@ -471,28 +469,28 @@ void lurkSetColor(lurkState *state, float r, float g, float b, float a) {
     PushCommand(state, cmd);
 }
 
-void lurkResetColor(lurkState *state) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandResetColor;
+void fwtResetColor(fwtState *state) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandResetColor;
     cmd->data = NULL;
     PushCommand(state, cmd);
 }
 
 typedef struct {
     int channel;
-    lurkTexture* texture;
-} lurkSetImageData;
+    fwtTexture* texture;
+} fwtSetImageData;
 
-void lurkSetImage(lurkState* state, uint64_t texture_id, int channel) {
+void fwtSetImage(fwtState* state, uint64_t texture_id, int channel) {
     assert(texture_id);
     imap_slot_t* slot = imap_lookup(state->textureMap, texture_id);
     assert(slot);
-    lurkTexture* texture = (lurkTexture*)imap_getval64(state->textureMap, slot);
+    fwtTexture* texture = (fwtTexture*)imap_getval64(state->textureMap, slot);
     assert(texture);
 
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandSetImage;
-    lurkSetImageData* cmdData = malloc(sizeof(lurkSetImageData));
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandSetImage;
+    fwtSetImageData* cmdData = malloc(sizeof(fwtSetImageData));
     cmdData->channel = channel;
     cmdData->texture = texture;
     cmd->data = cmdData;
@@ -501,12 +499,12 @@ void lurkSetImage(lurkState* state, uint64_t texture_id, int channel) {
 
 typedef struct {
     int channel;
-} lurkUnsetImageData;
+} fwtUnsetImageData;
 
-void lurkUnsetImage(lurkState *state, int channel) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandUnsetImage;
-    lurkUnsetImageData* cmdData = malloc(sizeof(lurkUnsetImageData));
+void fwtUnsetImage(fwtState *state, int channel) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandUnsetImage;
+    fwtUnsetImageData* cmdData = malloc(sizeof(fwtUnsetImageData));
     cmdData->channel = channel;
     cmd->data = cmdData;
     PushCommand(state, cmd);
@@ -514,12 +512,12 @@ void lurkUnsetImage(lurkState *state, int channel) {
 
 typedef struct {
     int channel;
-} lurkResetImageData;
+} fwtResetImageData;
 
-void lurkResetImage(lurkState *state, int channel) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandResetImage;
-    lurkResetImageData* cmdData = malloc(sizeof(lurkResetImageData));
+void fwtResetImage(fwtState *state, int channel) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandResetImage;
+    fwtResetImageData* cmdData = malloc(sizeof(fwtResetImageData));
     cmdData->channel = channel;
     cmd->data = cmdData;
     PushCommand(state, cmd);
@@ -527,12 +525,12 @@ void lurkResetImage(lurkState *state, int channel) {
 
 typedef struct {
     int channel;
-} lurkResetSamplerData;
+} fwtResetSamplerData;
 
-void lurkResetSampler(lurkState *state, int channel) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandResetSampler;
-    lurkResetSamplerData* cmdData = malloc(sizeof(lurkResetSamplerData));
+void fwtResetSampler(fwtState *state, int channel) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandResetSampler;
+    fwtResetSamplerData* cmdData = malloc(sizeof(fwtResetSamplerData));
     cmdData->channel = channel;
     cmd->data = cmdData;
     PushCommand(state, cmd);
@@ -543,12 +541,12 @@ typedef struct {
     int y;
     int w;
     int h;
-} lurkViewportData;
+} fwtViewportData;
 
-void lurkViewport(lurkState *state, int x, int y, int w, int h) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandViewport;
-    lurkViewportData* cmdData = malloc(sizeof(lurkViewportData));
+void fwtViewport(fwtState *state, int x, int y, int w, int h) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandViewport;
+    fwtViewportData* cmdData = malloc(sizeof(fwtViewportData));
     cmdData->x = x;
     cmdData->y = y;
     cmdData->w = w;
@@ -557,9 +555,9 @@ void lurkViewport(lurkState *state, int x, int y, int w, int h) {
     PushCommand(state, cmd);
 }
 
-void lurkResetViewport(lurkState *state) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandResetViewport;
+void fwtResetViewport(fwtState *state) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandResetViewport;
     cmd->data = NULL;
     PushCommand(state, cmd);
 }
@@ -569,12 +567,12 @@ typedef struct {
     int y;
     int w;
     int h;
-} lurkScissorData;
+} fwtScissorData;
 
-void lurkScissor(lurkState *state, int x, int y, int w, int h) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandScissor;
-    lurkScissorData* cmdData = malloc(sizeof(lurkScissorData));
+void fwtScissor(fwtState *state, int x, int y, int w, int h) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandScissor;
+    fwtScissorData* cmdData = malloc(sizeof(fwtScissorData));
     cmdData->x = x;
     cmdData->y = y;
     cmdData->w = w;
@@ -583,23 +581,23 @@ void lurkScissor(lurkState *state, int x, int y, int w, int h) {
     PushCommand(state, cmd);
 }
 
-void lurkResetScissor(lurkState *state) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandResetScissor;
+void fwtResetScissor(fwtState *state) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandResetScissor;
     cmd->data = NULL;
     PushCommand(state, cmd);
 }
 
-void lurkResetState(lurkState *state) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandResetState;
+void fwtResetState(fwtState *state) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandResetState;
     cmd->data = NULL;
     PushCommand(state, cmd);
 }
 
-void lurkClear(lurkState *state) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandClear;
+void fwtClear(fwtState *state) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandClear;
     cmd->data = NULL;
     PushCommand(state, cmd);
 }
@@ -607,12 +605,12 @@ void lurkClear(lurkState *state) {
 typedef struct {
     sgp_point* points;
     int count;
-} lurkDrawPointsData;
+} fwtDrawPointsData;
 
-void lurkDrawPoints(lurkState *state, sgp_point* points, int count) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandDrawPoints;
-    lurkDrawPointsData* cmdData = malloc(sizeof(lurkDrawPointsData));
+void fwtDrawPoints(fwtState *state, sgp_point* points, int count) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandDrawPoints;
+    fwtDrawPointsData* cmdData = malloc(sizeof(fwtDrawPointsData));
     cmdData->points = points;
     cmdData->count = count;
     cmd->data = cmdData;
@@ -622,12 +620,12 @@ void lurkDrawPoints(lurkState *state, sgp_point* points, int count) {
 typedef struct {
     float x;
     float y;
-} lurkDrawPointData;
+} fwtDrawPointData;
 
-void lurkDrawPoint(lurkState *state, float x, float y) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandDrawPoint;
-    lurkDrawPointData* cmdData = malloc(sizeof(lurkDrawPointData));
+void fwtDrawPoint(fwtState *state, float x, float y) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandDrawPoint;
+    fwtDrawPointData* cmdData = malloc(sizeof(fwtDrawPointData));
     cmdData->x = x;
     cmdData->y = y;
     cmd->data = cmdData;
@@ -637,12 +635,12 @@ void lurkDrawPoint(lurkState *state, float x, float y) {
 typedef struct {
     sgp_line* lines;
     int count;
-} lurkDrawLinesData;
+} fwtDrawLinesData;
 
-void lurkDrawLines(lurkState *state, sgp_line* lines, int count) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandDrawLines;
-    lurkDrawLinesData* cmdData = malloc(sizeof(lurkDrawLinesData));
+void fwtDrawLines(fwtState *state, sgp_line* lines, int count) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandDrawLines;
+    fwtDrawLinesData* cmdData = malloc(sizeof(fwtDrawLinesData));
     cmdData->lines = lines;
     cmdData->count = count;
     cmd->data = cmdData;
@@ -654,12 +652,12 @@ typedef struct {
     float ay;
     float bx;
     float by;
-} lurkDrawLineData;
+} fwtDrawLineData;
 
-void lurkDrawLine(lurkState *state, float ax, float ay, float bx, float by) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandDrawLine;
-    lurkDrawLineData* cmdData = malloc(sizeof(lurkDrawLineData));
+void fwtDrawLine(fwtState *state, float ax, float ay, float bx, float by) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandDrawLine;
+    fwtDrawLineData* cmdData = malloc(sizeof(fwtDrawLineData));
     cmdData->ax = ax;
     cmdData->ay = ay;
     cmdData->bx = bx;
@@ -671,12 +669,12 @@ void lurkDrawLine(lurkState *state, float ax, float ay, float bx, float by) {
 typedef struct {
     sgp_point* points;
     int count;
-} lurkDrawLinesStripData;
+} fwtDrawLinesStripData;
 
-void lurkDrawLinesStrip(lurkState *state, sgp_point* points, int count) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandDrawLinesStrip;
-    lurkDrawLinesStripData* cmdData = malloc(sizeof(lurkDrawLinesStripData));
+void fwtDrawLinesStrip(fwtState *state, sgp_point* points, int count) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandDrawLinesStrip;
+    fwtDrawLinesStripData* cmdData = malloc(sizeof(fwtDrawLinesStripData));
     cmdData->points = points;
     cmdData->count = count;
     cmd->data = cmdData;
@@ -686,12 +684,12 @@ void lurkDrawLinesStrip(lurkState *state, sgp_point* points, int count) {
 typedef struct {
     sgp_triangle* triangles;
     int count;
-} lurkDrawFilledTrianglesData;
+} fwtDrawFilledTrianglesData;
 
-void lurkDrawFilledTriangles(lurkState *state, sgp_triangle* triangles, int count) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandDrawFilledTriangles;
-    lurkDrawFilledTrianglesData* cmdData = malloc(sizeof(lurkDrawFilledTrianglesData));
+void fwtDrawFilledTriangles(fwtState *state, sgp_triangle* triangles, int count) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandDrawFilledTriangles;
+    fwtDrawFilledTrianglesData* cmdData = malloc(sizeof(fwtDrawFilledTrianglesData));
     cmdData->triangles = triangles;
     cmdData->count = count;
     cmd->data = cmdData;
@@ -705,12 +703,12 @@ typedef struct {
     float by;
     float cx;
     float cy;
-} lurkDrawFilledTriangleData;
+} fwtDrawFilledTriangleData;
 
-void lurkDrawFilledTriangle(lurkState *state, float ax, float ay, float bx, float by, float cx, float cy) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandDrawFilledTriangle;
-    lurkDrawFilledTriangleData* cmdData = malloc(sizeof(lurkDrawFilledTriangleData));
+void fwtDrawFilledTriangle(fwtState *state, float ax, float ay, float bx, float by, float cx, float cy) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandDrawFilledTriangle;
+    fwtDrawFilledTriangleData* cmdData = malloc(sizeof(fwtDrawFilledTriangleData));
     cmdData->ax = ax;
     cmdData->ay = ay;
     cmdData->bx = bx;
@@ -724,12 +722,12 @@ void lurkDrawFilledTriangle(lurkState *state, float ax, float ay, float bx, floa
 typedef struct {
     sgp_point* points;
     int count;
-} lurkDrawFilledTrianglesStripData;
+} fwtDrawFilledTrianglesStripData;
 
-void lurkDrawFilledTrianglesStrip(lurkState *state, sgp_point* points, int count) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandDrawFilledTrianglesStrip;
-    lurkDrawFilledTrianglesStripData* cmdData = malloc(sizeof(lurkDrawFilledTrianglesStripData));
+void fwtDrawFilledTrianglesStrip(fwtState *state, sgp_point* points, int count) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandDrawFilledTrianglesStrip;
+    fwtDrawFilledTrianglesStripData* cmdData = malloc(sizeof(fwtDrawFilledTrianglesStripData));
     cmdData->points = points;
     cmdData->count = count;
     cmd->data = cmdData;
@@ -739,12 +737,12 @@ void lurkDrawFilledTrianglesStrip(lurkState *state, sgp_point* points, int count
 typedef struct {
     sgp_rect* rects;
     int count;
-} lurkDrawFilledRectsData;
+} fwtDrawFilledRectsData;
 
-void lurkDrawFilledRects(lurkState *state, sgp_rect* rects, int count) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandDrawFilledRects;
-    lurkDrawFilledRectsData* cmdData = malloc(sizeof(lurkDrawFilledRectsData));
+void fwtDrawFilledRects(fwtState *state, sgp_rect* rects, int count) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandDrawFilledRects;
+    fwtDrawFilledRectsData* cmdData = malloc(sizeof(fwtDrawFilledRectsData));
     cmdData->rects = rects;
     cmdData->count = count;
     cmd->data = cmdData;
@@ -756,12 +754,12 @@ typedef struct {
     float y;
     float w;
     float h;
-} lurkDrawFilledRectData;
+} fwtDrawFilledRectData;
 
-void lurkDrawFilledRect(lurkState *state, float x, float y, float w, float h) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandDrawFilledRect;
-    lurkDrawFilledRectData* cmdData = malloc(sizeof(lurkDrawFilledRectData));
+void fwtDrawFilledRect(fwtState *state, float x, float y, float w, float h) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandDrawFilledRect;
+    fwtDrawFilledRectData* cmdData = malloc(sizeof(fwtDrawFilledRectData));
     cmdData->x = x;
     cmdData->y = y;
     cmdData->w = w;
@@ -774,12 +772,12 @@ typedef struct {
     int channel;
     sgp_textured_rect* rects;
     int count;
-} lurkDrawTexturedRectsData;
+} fwtDrawTexturedRectsData;
 
-void lurkDrawTexturedRects(lurkState *state, int channel, sgp_textured_rect* rects, int count) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandDrawTexturedRects;
-    lurkDrawTexturedRectsData* cmdData = malloc(sizeof(lurkDrawTexturedRectsData));
+void fwtDrawTexturedRects(fwtState *state, int channel, sgp_textured_rect* rects, int count) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandDrawTexturedRects;
+    fwtDrawTexturedRectsData* cmdData = malloc(sizeof(fwtDrawTexturedRectsData));
     cmdData->channel = channel;
     cmdData->rects = rects;
     cmdData->count = count;
@@ -791,12 +789,12 @@ typedef struct {
     int channel;
     sgp_rect dest_rect;
     sgp_rect src_rect;
-} lurkDrawTexturedRectData;
+} fwtDrawTexturedRectData;
 
-void lurkDrawTexturedRect(lurkState *state, int channel, sgp_rect dest_rect, sgp_rect src_rect) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandDrawTexturedRect;
-    lurkDrawTexturedRectData* cmdData = malloc(sizeof(lurkDrawTexturedRectData));
+void fwtDrawTexturedRect(fwtState *state, int channel, sgp_rect dest_rect, sgp_rect src_rect) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandDrawTexturedRect;
+    fwtDrawTexturedRectData* cmdData = malloc(sizeof(fwtDrawTexturedRectData));
     cmdData->channel = channel;
     cmdData->dest_rect = dest_rect;
     cmdData->src_rect = src_rect;
@@ -807,155 +805,155 @@ void lurkDrawTexturedRect(lurkState *state, int channel, sgp_rect dest_rect, sgp
 typedef struct {
     ezImage *image;
     const char *name;
-} lurkCreateTextureData;
+} fwtCreateTextureData;
 
-void lurkCreateTexture(lurkState *state, const char *name, ezImage *image) {
-    lurkCommand* cmd = malloc(sizeof(lurkCommand));
-    cmd->type = lurkCommandDrawTexturedRect;
-    lurkCreateTextureData* cmdData = malloc(sizeof(lurkCreateTextureData));
+void fwtCreateTexture(fwtState *state, const char *name, ezImage *image) {
+    fwtCommand* cmd = malloc(sizeof(fwtCommand));
+    cmd->type = fwtCommandDrawTexturedRect;
+    fwtCreateTextureData* cmdData = malloc(sizeof(fwtCreateTextureData));
     cmdData->name = name;
     cmdData->image = image;
     cmd->data = cmdData;
     PushCommand(state, cmd);
 }
 
-#if !defined(LURK_SCENE)
-static void FreeCommand(lurkCommand* command) {
-    lurkCommandType type = command->type;
+#if !defined(FWT_SCENE)
+static void FreeCommand(fwtCommand* command) {
+    fwtCommandType type = command->type;
     switch
 (type) {
-    case lurkCommandProject: {
-        lurkProjectData* data = (lurkProjectData*)command->data;
+    case fwtCommandProject: {
+        fwtProjectData* data = (fwtProjectData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandTranslate: {
-        lurkTranslateData* data = (lurkTranslateData*)command->data;
+    case fwtCommandTranslate: {
+        fwtTranslateData* data = (fwtTranslateData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandRotate: {
-        lurkRotateData* data = (lurkRotateData*)command->data;
+    case fwtCommandRotate: {
+        fwtRotateData* data = (fwtRotateData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandRotateAt: {
-        lurkRotateAtData* data = (lurkRotateAtData*)command->data;
+    case fwtCommandRotateAt: {
+        fwtRotateAtData* data = (fwtRotateAtData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandScale: {
-        lurkScaleData* data = (lurkScaleData*)command->data;
+    case fwtCommandScale: {
+        fwtScaleData* data = (fwtScaleData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandScaleAt: {
-        lurkScaleAtData* data = (lurkScaleAtData*)command->data;
+    case fwtCommandScaleAt: {
+        fwtScaleAtData* data = (fwtScaleAtData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandSetUniform: {
-        lurkSetUniformData* data = (lurkSetUniformData*)command->data;
+    case fwtCommandSetUniform: {
+        fwtSetUniformData* data = (fwtSetUniformData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandSetBlendMode: {
-        lurkSetBlendModeData* data = (lurkSetBlendModeData*)command->data;
+    case fwtCommandSetBlendMode: {
+        fwtSetBlendModeData* data = (fwtSetBlendModeData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandSetColor: {
-        lurkSetColorData* data = (lurkSetColorData*)command->data;
+    case fwtCommandSetColor: {
+        fwtSetColorData* data = (fwtSetColorData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandSetImage: {
-        lurkSetImageData* data = (lurkSetImageData*)command->data;
+    case fwtCommandSetImage: {
+        fwtSetImageData* data = (fwtSetImageData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandUnsetImage: {
-        lurkUnsetImageData* data = (lurkUnsetImageData*)command->data;
+    case fwtCommandUnsetImage: {
+        fwtUnsetImageData* data = (fwtUnsetImageData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandResetImage: {
-        lurkResetImageData* data = (lurkResetImageData*)command->data;
+    case fwtCommandResetImage: {
+        fwtResetImageData* data = (fwtResetImageData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandResetSampler: {
-        lurkResetSamplerData* data = (lurkResetSamplerData*)command->data;
+    case fwtCommandResetSampler: {
+        fwtResetSamplerData* data = (fwtResetSamplerData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandViewport: {
-        lurkViewportData* data = (lurkViewportData*)command->data;
+    case fwtCommandViewport: {
+        fwtViewportData* data = (fwtViewportData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandScissor: {
-        lurkScissorData* data = (lurkScissorData*)command->data;
+    case fwtCommandScissor: {
+        fwtScissorData* data = (fwtScissorData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandDrawPoints: {
-        lurkDrawPointsData* data = (lurkDrawPointsData*)command->data;
+    case fwtCommandDrawPoints: {
+        fwtDrawPointsData* data = (fwtDrawPointsData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandDrawPoint: {
-        lurkDrawPointData* data = (lurkDrawPointData*)command->data;
+    case fwtCommandDrawPoint: {
+        fwtDrawPointData* data = (fwtDrawPointData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandDrawLines: {
-        lurkDrawLinesData* data = (lurkDrawLinesData*)command->data;
+    case fwtCommandDrawLines: {
+        fwtDrawLinesData* data = (fwtDrawLinesData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandDrawLine: {
-        lurkDrawLineData* data = (lurkDrawLineData*)command->data;
+    case fwtCommandDrawLine: {
+        fwtDrawLineData* data = (fwtDrawLineData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandDrawLinesStrip: {
-        lurkDrawLinesStripData* data = (lurkDrawLinesStripData*)command->data;
+    case fwtCommandDrawLinesStrip: {
+        fwtDrawLinesStripData* data = (fwtDrawLinesStripData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandDrawFilledTriangles: {
-        lurkDrawFilledTrianglesData* data = (lurkDrawFilledTrianglesData*)command->data;
+    case fwtCommandDrawFilledTriangles: {
+        fwtDrawFilledTrianglesData* data = (fwtDrawFilledTrianglesData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandDrawFilledTriangle: {
-        lurkDrawFilledTriangleData* data = (lurkDrawFilledTriangleData*)command->data;
+    case fwtCommandDrawFilledTriangle: {
+        fwtDrawFilledTriangleData* data = (fwtDrawFilledTriangleData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandDrawFilledTrianglesStrip: {
-        lurkDrawFilledTrianglesStripData* data = (lurkDrawFilledTrianglesStripData*)command->data;
+    case fwtCommandDrawFilledTrianglesStrip: {
+        fwtDrawFilledTrianglesStripData* data = (fwtDrawFilledTrianglesStripData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandDrawFilledRects: {
-        lurkDrawFilledRectsData* data = (lurkDrawFilledRectsData*)command->data;
+    case fwtCommandDrawFilledRects: {
+        fwtDrawFilledRectsData* data = (fwtDrawFilledRectsData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandDrawFilledRect: {
-        lurkDrawFilledRectData* data = (lurkDrawFilledRectData*)command->data;
+    case fwtCommandDrawFilledRect: {
+        fwtDrawFilledRectData* data = (fwtDrawFilledRectData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandDrawTexturedRects: {
-        lurkDrawTexturedRectsData* data = (lurkDrawTexturedRectsData*)command->data;
+    case fwtCommandDrawTexturedRects: {
+        fwtDrawTexturedRectsData* data = (fwtDrawTexturedRectsData*)command->data;
         free(data);
         break;
     }
-    case lurkCommandDrawTexturedRect: {
-        lurkDrawTexturedRectData* data = (lurkDrawTexturedRectData*)command->data;
+    case fwtCommandDrawTexturedRect: {
+        fwtDrawTexturedRectData* data = (fwtDrawTexturedRectData*)command->data;
         free(data);
         break;
     }
@@ -965,186 +963,186 @@ static void FreeCommand(lurkCommand* command) {
     free(command);
 }
 
-static void ProcessCommand(lurkCommand* command) {
-    lurkCommandType type = command->type;
+static void ProcessCommand(fwtCommand* command) {
+    fwtCommandType type = command->type;
     switch (type) {
-    case lurkCommandProject: {
-        lurkProjectData* data = (lurkProjectData*)command->data;
+    case fwtCommandProject: {
+        fwtProjectData* data = (fwtProjectData*)command->data;
         sgp_project(data->left, data->right, data->top, data->bottom);
         break;
     }
-    case lurkCommandResetProject:
+    case fwtCommandResetProject:
         sgp_reset_project();
         break;
-    case lurkCommandPushTransform:
+    case fwtCommandPushTransform:
         sgp_push_transform();
         break;
-    case lurkCommandPopTransform:
+    case fwtCommandPopTransform:
         sgp_pop_transform();
         break;
-    case lurkCommandResetTransform:
+    case fwtCommandResetTransform:
         sgp_reset_transform();
         break;
-    case lurkCommandTranslate: {
-        lurkTranslateData* data = (lurkTranslateData*)command->data;
+    case fwtCommandTranslate: {
+        fwtTranslateData* data = (fwtTranslateData*)command->data;
         sgp_translate(data->x, data->y);
         break;
     }
-    case lurkCommandRotate: {
-        lurkRotateData* data = (lurkRotateData*)command->data;
+    case fwtCommandRotate: {
+        fwtRotateData* data = (fwtRotateData*)command->data;
         sgp_rotate(data->theta);
         break;
     }
-    case lurkCommandRotateAt: {
-        lurkRotateAtData* data = (lurkRotateAtData*)command->data;
+    case fwtCommandRotateAt: {
+        fwtRotateAtData* data = (fwtRotateAtData*)command->data;
         sgp_rotate_at(data->theta, data->x, data->y);
         break;
     }
-    case lurkCommandScale: {
-        lurkScaleData* data = (lurkScaleData*)command->data;
+    case fwtCommandScale: {
+        fwtScaleData* data = (fwtScaleData*)command->data;
         sgp_scale(data->sx, data->sy);
         break;
     }
-    case lurkCommandScaleAt: {
-        lurkScaleAtData* data = (lurkScaleAtData*)command->data;
+    case fwtCommandScaleAt: {
+        fwtScaleAtData* data = (fwtScaleAtData*)command->data;
         sgp_scale_at(data->sx, data->sy, data->x, data->y);
         break;
     }
-    case lurkCommandResetPipeline:
+    case fwtCommandResetPipeline:
         sgp_reset_pipeline();
         break;
-    case lurkCommandSetUniform: {
-        lurkSetUniformData* data = (lurkSetUniformData*)command->data;
+    case fwtCommandSetUniform: {
+        fwtSetUniformData* data = (fwtSetUniformData*)command->data;
         sgp_set_uniform(data->data, data->size);
         break;
     }
-    case lurkCommandResetUniform:
+    case fwtCommandResetUniform:
         sgp_reset_uniform();
         break;
-    case lurkCommandSetBlendMode: {
-        lurkSetBlendModeData* data = (lurkSetBlendModeData*)command->data;
+    case fwtCommandSetBlendMode: {
+        fwtSetBlendModeData* data = (fwtSetBlendModeData*)command->data;
         sgp_set_blend_mode(data->blend_mode);
         break;
     }
-    case lurkCommandResetBlendMode:
+    case fwtCommandResetBlendMode:
         sgp_reset_blend_mode();
         break;
-    case lurkCommandSetColor: {
-        lurkSetColorData* data = (lurkSetColorData*)command->data;
+    case fwtCommandSetColor: {
+        fwtSetColorData* data = (fwtSetColorData*)command->data;
         sgp_set_color(data->r, data->g, data->b, data->a);
         break;
     }
-    case lurkCommandResetColor:
+    case fwtCommandResetColor:
         sgp_reset_color();
         break;
-    case lurkCommandSetImage: {
-        lurkSetImageData* data = (lurkSetImageData*)command->data;
+    case fwtCommandSetImage: {
+        fwtSetImageData* data = (fwtSetImageData*)command->data;
         sgp_set_image(data->channel, data->texture->internal);
         break;
     }
-    case lurkCommandUnsetImage: {
-        lurkUnsetImageData* data = (lurkUnsetImageData*)command->data;
+    case fwtCommandUnsetImage: {
+        fwtUnsetImageData* data = (fwtUnsetImageData*)command->data;
         sgp_unset_image(data->channel);
         break;
     }
-    case lurkCommandResetImage: {
-        lurkResetImageData* data = (lurkResetImageData*)command->data;
+    case fwtCommandResetImage: {
+        fwtResetImageData* data = (fwtResetImageData*)command->data;
         sgp_reset_image(data->channel);
         break;
     }
-    case lurkCommandResetSampler: {
-        lurkResetSamplerData* data = (lurkResetSamplerData*)command->data;
+    case fwtCommandResetSampler: {
+        fwtResetSamplerData* data = (fwtResetSamplerData*)command->data;
         sgp_reset_sampler(data->channel);
         break;
     }
-    case lurkCommandViewport: {
-        lurkViewportData* data = (lurkViewportData*)command->data;
+    case fwtCommandViewport: {
+        fwtViewportData* data = (fwtViewportData*)command->data;
         sgp_viewport(data->x, data->y, data->w, data->h);
         break;
     }
-    case lurkCommandResetViewport:
+    case fwtCommandResetViewport:
         sgp_reset_viewport();
         break;
-    case lurkCommandScissor: {
-        lurkScissorData* data = (lurkScissorData*)command->data;
+    case fwtCommandScissor: {
+        fwtScissorData* data = (fwtScissorData*)command->data;
         sgp_scissor(data->x, data->y, data->w, data->h);
         break;
     }
-    case lurkCommandResetScissor:
+    case fwtCommandResetScissor:
         sgp_reset_scissor();
         break;
-    case lurkCommandResetState:
+    case fwtCommandResetState:
         sgp_reset_state();
         break;
-    case lurkCommandClear:
+    case fwtCommandClear:
         sgp_clear();
         break;
-    case lurkCommandDrawPoints: {
-        lurkDrawPointsData* data = (lurkDrawPointsData*)command->data;
+    case fwtCommandDrawPoints: {
+        fwtDrawPointsData* data = (fwtDrawPointsData*)command->data;
         sgp_draw_points(data->points, data->count);
         break;
     }
-    case lurkCommandDrawPoint: {
-        lurkDrawPointData* data = (lurkDrawPointData*)command->data;
+    case fwtCommandDrawPoint: {
+        fwtDrawPointData* data = (fwtDrawPointData*)command->data;
         sgp_draw_point(data->x, data->y);
         break;
     }
-    case lurkCommandDrawLines: {
-        lurkDrawLinesData* data = (lurkDrawLinesData*)command->data;
+    case fwtCommandDrawLines: {
+        fwtDrawLinesData* data = (fwtDrawLinesData*)command->data;
         sgp_draw_lines(data->lines, data->count);
         break;
     }
-    case lurkCommandDrawLine: {
-        lurkDrawLineData* data = (lurkDrawLineData*)command->data;
+    case fwtCommandDrawLine: {
+        fwtDrawLineData* data = (fwtDrawLineData*)command->data;
         sgp_draw_line(data->ax, data->ay, data->bx, data->by);
         break;
     }
-    case lurkCommandDrawLinesStrip: {
-        lurkDrawLinesStripData* data = (lurkDrawLinesStripData*)command->data;
+    case fwtCommandDrawLinesStrip: {
+        fwtDrawLinesStripData* data = (fwtDrawLinesStripData*)command->data;
         sgp_draw_lines_strip(data->points, data->count);
         break;
     }
-    case lurkCommandDrawFilledTriangles: {
-        lurkDrawFilledTrianglesData* data = (lurkDrawFilledTrianglesData*)command->data;
+    case fwtCommandDrawFilledTriangles: {
+        fwtDrawFilledTrianglesData* data = (fwtDrawFilledTrianglesData*)command->data;
         sgp_draw_filled_triangles(data->triangles, data->count);
         break;
     }
-    case lurkCommandDrawFilledTriangle: {
-        lurkDrawFilledTriangleData* data = (lurkDrawFilledTriangleData*)command->data;
+    case fwtCommandDrawFilledTriangle: {
+        fwtDrawFilledTriangleData* data = (fwtDrawFilledTriangleData*)command->data;
         sgp_draw_filled_triangle(data->ax, data->ay, data->bx, data->by, data->cx, data->cy);
         break;
     }
-    case lurkCommandDrawFilledTrianglesStrip: {
-        lurkDrawFilledTrianglesStripData* data = (lurkDrawFilledTrianglesStripData*)command->data;
+    case fwtCommandDrawFilledTrianglesStrip: {
+        fwtDrawFilledTrianglesStripData* data = (fwtDrawFilledTrianglesStripData*)command->data;
         sgp_draw_filled_triangles_strip(data->points, data->count);
         break;
     }
-    case lurkCommandDrawFilledRects: {
-        lurkDrawFilledRectsData* data = (lurkDrawFilledRectsData*)command->data;
+    case fwtCommandDrawFilledRects: {
+        fwtDrawFilledRectsData* data = (fwtDrawFilledRectsData*)command->data;
         sgp_draw_filled_rects(data->rects, data->count);
         break;
     }
-    case lurkCommandDrawFilledRect: {
-        lurkDrawFilledRectData* data = (lurkDrawFilledRectData*)command->data;
+    case fwtCommandDrawFilledRect: {
+        fwtDrawFilledRectData* data = (fwtDrawFilledRectData*)command->data;
         sgp_draw_filled_rect(data->x, data->y, data->w, data->h);
         break;
     }
-    case lurkCommandDrawTexturedRects: {
-        lurkDrawTexturedRectsData* data = (lurkDrawTexturedRectsData*)command->data;
+    case fwtCommandDrawTexturedRects: {
+        fwtDrawTexturedRectsData* data = (fwtDrawTexturedRectsData*)command->data;
         sgp_draw_textured_rects(data->channel, data->rects, data->count);
         break;
     }
-    case lurkCommandDrawTexturedRect: {
-        lurkDrawTexturedRectData* data = (lurkDrawTexturedRectData*)command->data;
+    case fwtCommandDrawTexturedRect: {
+        fwtDrawTexturedRectData* data = (fwtDrawTexturedRectData*)command->data;
         sgp_draw_textured_rect(data->channel, data->dest_rect, data->src_rect);
         break;
     }
-    case lurkCommandCreateTexture: {
-        lurkCreateTextureData* data = (lurkCreateTextureData*)command->data;
+    case fwtCommandCreateTexture: {
+        fwtCreateTextureData* data = (fwtCreateTextureData*)command->data;
         uint64_t hash = MurmurHash((void*)data->name, strlen(data->name), 0);
         imap_slot_t *slot = imap_assign(state.textureMap, hash);
         assert(!slot);
-        lurkTexture* texture = EmptyTexture(data->image->w, data->image->h);
+        fwtTexture* texture = EmptyTexture(data->image->w, data->image->h);
         UpdateTexture(texture, data->image->buf, data->image->w, data->image->h);
         imap_setval64(state.textureMap, slot, (uint64_t)texture);
         break;
@@ -1155,7 +1153,7 @@ static void ProcessCommand(lurkCommand* command) {
 }
 #endif
 
-#if defined(LURK_WINDOWS)
+#if defined(FWT_WINDOWS)
 static FILETIME Win32GetLastWriteTime(char* path) {
     FILETIME time;
     WIN32_FILE_ATTRIBUTE_DATA data;
@@ -1167,13 +1165,13 @@ static FILETIME Win32GetLastWriteTime(char* path) {
 }
 #endif
 
-#if !defined(LURK_SCENE)
+#if !defined(FWT_SCENE)
 static bool ReloadLibrary(const char *path) {
-#if defined(LURK_DISABLE_HOTRELOAD)
+#if defined(FWT_DISABLE_HOTRELOAD)
     return true;
 #endif
 
-#if defined(LURK_WINDOWS)
+#if defined(FWT_WINDOWS)
     FILETIME newTime = Win32GetLastWriteTime(path);
     bool result = CompareFileTime(&newTime, &state.libraryWriteTime);
     if (result)
@@ -1203,7 +1201,7 @@ static bool ReloadLibrary(const char *path) {
         dlclose(state.libraryHandle);
     }
 
-#if defined(LURK_WINDOWS)
+#if defined(FWT_WINDOWS)
     size_t newPathSize = libraryPathLength + 4;
     char *newPath = malloc(sizeof(char) * newPathSize);
     char *noExt = RemoveExt(state.libraryPath);
@@ -1234,7 +1232,7 @@ BAIL:
     if (state.libraryHandle)
         dlclose(state.libraryHandle);
     state.libraryHandle = NULL;
-#if defined(LURK_WINDOWS)
+#if defined(FWT_WINDOWS)
     memset(&state.libraryWriteTime, 0, sizeof(FILETIME));
 #else
     state.libraryHandleID = 0;
@@ -1295,7 +1293,7 @@ static int ExportConfig(const char *path) {
 static int ParseArguments(int argc, char *argv[]) {
     const char *name = argv[0];
     sargs_desc desc = (sargs_desc) {
-#if defined LURK_EMSCRIPTEN
+#if defined FWT_EMSCRIPTEN
         .argc = argc,
         .argv = (char**)argv
 #else
@@ -1305,7 +1303,7 @@ static int ParseArguments(int argc, char *argv[]) {
     };
     sargs_setup(&desc);
 
-#if !defined(LURK_EMSCRIPTEN)
+#if !defined(FWT_EMSCRIPTEN)
     if (sargs_exists("help")) {
         Usage(name);
         return 0;
@@ -1324,7 +1322,7 @@ static int ParseArguments(int argc, char *argv[]) {
         }
         LoadConfig(path);
     }
-#endif // LURK_EMSCRIPTEN
+#endif // FWT_EMSCRIPTEN
 
 #define boolean 1
 #define integer 0
@@ -1351,19 +1349,6 @@ static int ParseArguments(int argc, char *argv[]) {
 }
 
 // MARK: Program loop
-
-#define VALID_EXTS_LEN 9
-static const char *VALID_IMAGE_EXTS[VALID_EXTS_LEN] = {
-    "jpg",
-    "png",
-    "tga",
-    "bmp",
-    "psd",
-    "gdr",
-    "pic",
-    "pnm",
-    "qoi"
-};
 
 static const char* ToLower(const char *str, int length) {
     if (!length)
@@ -1427,8 +1412,8 @@ static void AssetWatchCallback(dmon_watch_id watch_id,
                                const char* filepath,
                                const char* oldfilepath,
                                void* user) {
-//    if (DoesFileExist(LURK_ASSETS_PATH_OUT))
-//        remove(LURK_ASSETS_PATH_OUT);
+//    if (DoesFileExist(FWT_ASSETS_PATH_OUT))
+//        remove(FWT_ASSETS_PATH_OUT);
 
     // TODO: Check if file exists inside map
     // TODO: Compare file hashes
@@ -1446,7 +1431,7 @@ static void AssetWatchCallback(dmon_watch_id watch_id,
     return;
 
     int count = 0;
-#if defined(LURK_POSIX)
+#if defined(FWT_POSIX)
     const char **files = GetFilesInDir(rootdir, &count);
 #else
     char appended[MAX_PATH];
@@ -1455,21 +1440,6 @@ static void AssetWatchCallback(dmon_watch_id watch_id,
 #endif
     assert(count);
     free(files);
-}
-
-static void GamepadButtonDown(struct Gamepad_device* device, unsigned int buttonID, double timestamp, void* context) {
-}
-
-static void GamepadButtonUp(struct Gamepad_device* device, unsigned int buttonID, double timestamp, void* context) {
-}
-
-static void GamepadAxisMoved(struct Gamepad_device* device, unsigned int axisID, float value, float lastValue, double timestamp, void* context) {
-}
-
-static void GamepadDeviceAttached(struct Gamepad_device* device, void* context) {
-}
-
-static void GamepadDeviceRemoved(struct Gamepad_device* device, void* context) {
 }
 
 static void InitCallback(void) {
@@ -1482,94 +1452,31 @@ static void InitCallback(void) {
     sgp_desc desc_sgp = (sgp_desc) {};
     sgp_setup(&desc_sgp);
     assert(sg_isvalid() && sgp_is_valid());
-#if !defined(LURK_DISABLE_HOTRELOAD)
+#if !defined(FWT_DISABLE_HOTRELOAD)
     dmon_init();
-//    dmon_watch(LURK_ASSETS_PATH_IN, AssetWatchCallback, DMON_WATCHFLAGS_IGNORE_DIRECTORIES, NULL);
+//    dmon_watch(FWT_ASSETS_PATH_IN, AssetWatchCallback, DMON_WATCHFLAGS_IGNORE_DIRECTORIES, NULL);
 #endif
-    Gamepad_deviceAttachFunc(GamepadDeviceAttached, NULL);
-	Gamepad_deviceRemoveFunc(GamepadDeviceRemoved, NULL);
-	Gamepad_buttonDownFunc(GamepadButtonDown, NULL);
-	Gamepad_buttonUpFunc(GamepadButtonUp, NULL);
-	Gamepad_axisMoveFunc(GamepadAxisMoved, NULL);
-	Gamepad_init();
 
     state.textureMapCapacity = 1;
     state.textureMapCount = 0;
     state.textureMap = imap_ensure(NULL, 1);
-
     state.windowWidth = sapp_width();
     state.windowHeight = sapp_height();
     state.clearColor = (sg_color){0.39f, 0.58f, 0.92f, 1.f};
 
-#if defined(LURK_MAC)
-    mach_timebase_info_data_t info;
-    mach_timebase_info(&info);
-    uint64_t frequency = info.denom;
-    frequency *= 1000000000L;
-    state.timerFrequency = frequency / info.numer;
-#elif defined(LURK_WINDOW)
-    LARGE_INTEGER frequency;
-    if (!QueryPerformanceFrequency(&frequency))
-        return 1000L;
-    state.timerFrequency = frequency.QuadPart;
-#else
-    state.timerFrequency = 1000000000L;
-#endif
-
-    state.updateMultiplicity = 1;
-#if defined(LURK_UNLOCKFRAME_RATE)
-    state.unlockFramerate = 1;
-#else
-    state.unlockFramerate = 0;
-#endif
-    state.desiredFrameTime = state.timerFrequency * DEFAULT_TARGET_FPS;
-    state.fixedDeltaTime = 1.0 / DEFAULT_TARGET_FPS;
-    int64_t time60hz = state.timerFrequency / 60;
-    state.snapFrequencies[0] = time60hz;
-    state.snapFrequencies[1] = time60hz*2;
-    state.snapFrequencies[2] = time60hz*3;
-    state.snapFrequencies[3] = time60hz*4;
-    state.snapFrequencies[4] = (time60hz+1)/2;
-    state.snapFrequencies[5] = (time60hz+2)/3;
-    state.snapFrequencies[6] = (time60hz+3)/4;
-    state.maxVsyncError = state.timerFrequency * .0002;
-    for (int i = 0; i < 4; i++)
-        state.timeAverager[i] = state.desiredFrameTime;
-    state.resync = true;
-    state.prevFrameTime = stm_now();
-    state.frameAccumulator = 0;
-
-    state.world = ezEcsNewWorld();
-
     state.nextScene = NULL;
-    lurkSwapToScene(&state, LURK_FIRST_SCENE);
+    fwtSwapToScene(&state, FWT_FIRST_SCENE);
     assert(ReloadLibrary(state.nextScene));
 }
 
 static void ProcessCommandQueue(void) {
     while (state.commandQueue.front) {
-        lurkCommand *command = (lurkCommand*)state.commandQueue.front->data;
+        fwtCommand *command = (fwtCommand*)state.commandQueue.front->data;
         ProcessCommand(command);
         FreeCommand(command);
         ezStackEntry *head = ezStackShift(&state.commandQueue);
         free(head);
     }
-}
-
-static void CallFixedUpdate(void) {
-    if (state.libraryScene->fixedupdate)
-        state.libraryScene->fixedupdate(&state, state.libraryContext, state.fixedDeltaTime);
-#if !defined(LURK_ECS_VARIABLE_TICK)
-    ezEcsStep(state.world);
-#endif
-}
-
-static void CallVarUpdate(float delta) {
-    if (state.libraryScene->update)
-        state.libraryScene->update(&state, state.libraryContext, delta);
-#if defined(LURK_ECS_VARIABLE_TICK)
-    ezEcsStep(state.world);
-#endif
 }
 
 static void FrameCallback(void) {
@@ -1592,7 +1499,7 @@ static void FrameCallback(void) {
         assert(ReloadLibrary(state.nextScene));
         state.nextScene = NULL;
     } else
-#if !defined(LURK_DISABLE_HOTRELOAD)
+#if !defined(FWT_DISABLE_HOTRELOAD)
         assert(ReloadLibrary(state.libraryPath));
 #endif
 
@@ -1604,57 +1511,8 @@ static void FrameCallback(void) {
     int64_t current_frame_time = stm_now();
     int64_t delta_time = current_frame_time - state.prevFrameTime;
     state.prevFrameTime = current_frame_time;
-
-    if (delta_time > state.desiredFrameTime * 8)
-        delta_time = state.desiredFrameTime;
-    if (delta_time < 0)
-        delta_time = 0;
-
-    for (int i = 0; i < 7; ++i)
-        if (labs(delta_time - state.snapFrequencies[i]) < state.maxVsyncError) {
-            delta_time = state.snapFrequencies[i];
-            break;
-        }
-
-    for (int i = 0; i < 3; ++i)
-        state.timeAverager[i] = state.timeAverager[i + 1];
-    state.timeAverager[3] = delta_time;
-    delta_time = 0;
-    for (int i = 0; i < 4; ++i)
-        delta_time += state.timeAverager[i];
-    delta_time /= 4.f;
-
-    if ((state.frameAccumulator += delta_time) > state.desiredFrameTime * 8)
-        state.resync = true;
-
-    if (state.resync) {
-        state.frameAccumulator = 0;
-        delta_time = state.desiredFrameTime;
-        state.resync = false;
-    }
-
-    double render_time = 1.0;
-    if (state.unlockFramerate) {
-        int64_t consumedDeltaTime = delta_time;
-
-        while (state.frameAccumulator >= state.desiredFrameTime) {
-            CallFixedUpdate();
-            if (consumedDeltaTime > state.desiredFrameTime) {
-                CallVarUpdate(state.fixedDeltaTime);
-                consumedDeltaTime -= state.desiredFrameTime;
-            }
-            state.frameAccumulator -= state.desiredFrameTime;
-        }
-
-        CallVarUpdate((double)consumedDeltaTime / state.timerFrequency);
-        render_time = (double)state.frameAccumulator / state.desiredFrameTime;
-    } else
-        while (state.frameAccumulator >= state.desiredFrameTime*state.updateMultiplicity)
-            for (int i = 0; i < state.updateMultiplicity; ++i) {
-                CallFixedUpdate();
-                CallVarUpdate(state.fixedDeltaTime);
-                state.frameAccumulator -= state.desiredFrameTime;
-            }
+    if (state.libraryScene->update)
+        state.libraryScene->update(&state, state.libraryContext, delta);
 
     sgp_begin(state.windowWidth, state.windowHeight);
     if (state.libraryScene->frame)
@@ -1725,7 +1583,7 @@ static void CleanupCallback(void) {
     if (state.libraryScene->deinit)
         state.libraryScene->deinit(&state, state.libraryContext);
     ezEcsFreeWorld(&state.world);
-#if !defined(LURK_DISABLE_HOTRELOAD)
+#if !defined(FWT_DISABLE_HOTRELOAD)
     dmon_deinit();
 #endif
     dlclose(state.libraryHandle);
@@ -1733,11 +1591,11 @@ static void CleanupCallback(void) {
 }
 
 sapp_desc sokol_main(int argc, char* argv[]) {
-#if defined(LURK_ENABLE_CONFIG)
-#if !defined(LURK_CONFIG_PATH)
+#if defined(FWT_ENABLE_CONFIG)
+#if !defined(FWT_CONFIG_PATH)
     const char *configPath = JoinPath(UserPath(), DEFAULT_CONFIG_NAME);
 #else
-    const char *configPath = ResolvePath(LURK_CONFIG_PATH);
+    const char *configPath = ResolvePath(FWT_CONFIG_PATH);
 #endif
 
     if (DoesFileExist(configPath)) {
@@ -1755,7 +1613,7 @@ sapp_desc sokol_main(int argc, char* argv[]) {
         }
     }
 #endif
-#if defined(LURK_ENABLE_ARGUMENTS)
+#if defined(FWT_ENABLE_ARGUMENTS)
     if (argc > 1)
         if (!ParseArguments(argc, argv)) {
             fprintf(stderr, "[PARSE ARGUMENTS ERROR] Failed to parse arguments\n");
@@ -1771,69 +1629,69 @@ sapp_desc sokol_main(int argc, char* argv[]) {
 }
 #endif
 
-#if defined(LURK_MAC)
+#if defined(FWT_MAC)
 #define DYLIB_EXT ".dylib"
-#elif defined(LURK_WINDOWS)
+#elif defined(FWT_WINDOWS)
 #define DYLIB_EXT ".dll"
-#elif defined(LURK_LINUX)
+#elif defined(FWT_LINUX)
 #define DYLIB_EXT ".so"
 #else
 #error Unsupported operating system
 #endif
 
-void lurkSwapToScene(lurkState *state, const char *name) {
+void fwtSwapToScene(fwtState *state, const char *name) {
     const char *ext = FileExt(name);
     if (ext)
         state->nextScene = name;
     else {
         static char path[MAX_PATH];
-        sprintf(path, "./%s/%s%s", LURK_DYLIB_PATH, name, DYLIB_EXT);
+        sprintf(path, "./%s/%s%s", FWT_DYLIB_PATH, name, DYLIB_EXT);
         state->nextScene = path;
     }
 }
 
-void lurkWindowSize(lurkState *state, int *width, int *height) {
+void fwtWindowSize(fwtState *state, int *width, int *height) {
     if (width)
         *width = state->windowWidth;
     if (height)
         *height = state->windowHeight;
 }
 
-int lurkIsWindowFullscreen(lurkState *state) {
+int fwtIsWindowFullscreen(fwtState *state) {
     return state->fullscreen;
 }
 
-void lurkToggleFullscreen(lurkState *state) {
+void fwtToggleFullscreen(fwtState *state) {
     state->fullscreen = !state->fullscreen;
 }
 
-int lurkIsCursorVisible(lurkState *state) {
+int fwtIsCursorVisible(fwtState *state) {
     return state->cursorVisible;
 }
 
-void lurkToggleCursorVisible(lurkState *state) {
+void fwtToggleCursorVisible(fwtState *state) {
     state->cursorVisible = !state->cursorVisible;
 }
 
-int lurkIsCursorLocked(lurkState *state) {
+int fwtIsCursorLocked(fwtState *state) {
     return state->cursorLocked;
 }
 
-void lurkToggleCursorLock(lurkState *state) {
+void fwtToggleCursorLock(fwtState *state) {
     state->cursorLocked = !state->cursorLocked;
 }
 
-uint64_t lurkFindTexture(lurkState *state, const char *name) {
+uint64_t fwtFindTexture(fwtState *state, const char *name) {
     uint64_t hash = MurmurHash((void*)name, strlen(name), 0);
     return imap_lookup(state->textureMap, hash) ? hash : -1L;
 }
 
-bool lurkIsKeyDown(lurkState *state, sapp_keycode key) {
+bool fwtIsKeyDown(fwtState *state, sapp_keycode key) {
     assert(key >= SAPP_KEYCODE_SPACE && key <= SAPP_KEYCODE_MENU);
     return state->keyboard[key].down;
 }
 
-bool lurkAreAllKeysDown(lurkState *state, int count, ...) {
+bool fwtAreAllKeysDown(fwtState *state, int count, ...) {
     va_list args;
     va_start(args, count);
     for (int i = 0; i < count; i++)
@@ -1842,7 +1700,7 @@ bool lurkAreAllKeysDown(lurkState *state, int count, ...) {
     return true;
 }
 
-bool lurkAreAnyKeysDown(lurkState *state, int count, ...) {
+bool fwtAreAnyKeysDown(fwtState *state, int count, ...) {
     va_list args;
     va_start(args, count);
     for (int i = 0; i < count; i++)
@@ -1851,35 +1709,35 @@ bool lurkAreAnyKeysDown(lurkState *state, int count, ...) {
     return false;
 }
 
-bool lurkIsMouseButtonDown(lurkState *state, sapp_mousebutton button) {
+bool fwtIsMouseButtonDown(fwtState *state, sapp_mousebutton button) {
     assert(button == SAPP_MOUSEBUTTON_LEFT ||
            button == SAPP_MOUSEBUTTON_RIGHT ||
            button == SAPP_MOUSEBUTTON_MIDDLE);
     return state->mouse.buttons[button].down;
 }
 
-void lurkMousePosition(lurkState *state, int* x, int* y) {
+void fwtMousePosition(fwtState *state, int* x, int* y) {
     if (x)
         *x = state->mouse.position.x;
     if (y)
         *y = state->mouse.position.y;
 }
 
-void lurkMouseDelta(lurkState *state, int *dx, int *dy) {
+void fwtMouseDelta(fwtState *state, int *dx, int *dy) {
     if (dx)
         *dx = state->mouse.position.x - state->mouse.lastPosition.x;
     if (dy)
         *dy = state->mouse.position.y - state->mouse.lastPosition.y;
 }
 
-void lurkMouseScroll(lurkState *state, float *dx, float *dy) {
+void fwtMouseScroll(fwtState *state, float *dx, float *dy) {
     if (dx)
         *dx = state->mouse.scroll.x;
     if (dy)
         *dy = state->mouse.scroll.y;
 }
 
-bool lurkTestKeyboardModifiers(lurkState *state, int count, ...) {
+bool fwtTestKeyboardModifiers(fwtState *state, int count, ...) {
     va_list args;
     va_start(args, count);
     for (int i = 0; i < count; i++)

@@ -1,62 +1,48 @@
-OUT_PATH=build
-SCENES_PATH=scenes
-INCLUDE=-Ilurk -Ilurk/deps -I$(SCENES_PATH)
-SOURCES=$(wildcard lurk/*.c) lurk/deps/gamepad/Gamepad_private.c
-
 ifeq ($(OS),Windows_NT)
-	PROG_EXT=.exe
-	SOKOL_FLAGS=-O2 -DSOKOL_D3D11 -lkernel32 -luser32 -lshell32 -ldxgi -ld3d11 -lole32 -lgdi32
-	ARCH=win32
-	LIB_EXT=dll
-	SHDC_FLAGS=hlsl5
-	SOURCES:=$(SOURCES) lurk/deps/dlfcn_win32.c
+	include windows.Makefile
 else
 	UNAME:=$(shell uname -s)
-	PROG_EXT=
 	ifeq ($(UNAME),Darwin)
-		SOKOL_FLAGS=-x objective-c -DSOKOL_METAL -fno-objc-arc -framework CoreServices -framework CoreFoundation -lpthread -framework Metal -framework Cocoa -framework MetalKit -framework Quartz -framework IOKit
-		ARCH:=$(shell uname -m)
-		LIB_EXT=dylib
-		ifeq ($(ARCH),arm64)
-			ARCH=osx_arm64
-		else
-			ARCH=osx
-		endif
-		SHDC_FLAGS=metal_macos
-		SOURCES:=$(SOURCES) lurk/deps/gamepad/Gamepad_macosx.c
+		include macos.Makefile
 	else ifeq ($(UNAME),Linux)
-		SOKOL_FLAGS=-DSOKOL_GLCORE33 -pthread -lGL -ldl -lm -lX11 -lasound -lXi -lXcursor
-		ARCH=linux
-		SHDC_FLAGS=glsl330
-		LIB_EXT=so
-		SOURCES:=$(SOURCES) lurk/deps/gamepad/Gamepad_linux.c
+		include linux.Makefile
 	else
 		$(error OS not supported by this Makefile)
 	endif
 endif
 
-default: all
+SRC := $(wildcard "src/*.c")
+SCENES := scenes
+INC := -Ideps -Isrc -Lbuild
+BIN := build
 
-SCENES=$(wildcard $(SCENES_PATH)/*.c)
-SCENES_OUT=$(patsubst $(SCENES_PATH)/%.c,$(OUT_PATH)/%.$(LIB_EXT), $(SCENES))
+default: program
 
-.SECONDEXPANSION:
-SCENE=$(patsubst $(OUT_PATH)/%.$(LIB_EXT),$(SCENES_PATH)/%.c,$@)
-SCENE_OUT=$@
-%.$(LIB_EXT): $(SCENES)
-	$(CC) -shared -fpic $(INCLUDE) -DSOKOL_NO_ENTRY -DLURK_SCENE -fenable-matrix $(SOKOL_FLAGS) $(SCENE) $(SOURCES) -o $(SCENE_OUT)
+builddir:
+	mkdir -p $(BIN)
 
-$(OUT_PATH):
-	mkdir $(OUT_PATH)
+SHDC_PATH=bin/$(ARCH)/sokol-shdc$(PROG_EXT)
 
-scenes: $(OUT_PATH) $(SCENES_OUT)
+shader:
+	$(SHDC_PATH) -i etc/shader.glsl -o $(BUILD)/shader.glsl.h -l $(SHDC_FLAGS)
 
-program: $(OUT_PATH)
-	$(CC) $(INCLUDE) -g -fenable-matrix $(SOKOL_FLAGS) $(SOURCES) -o $(OUT_PATH)/lurk_$(ARCH)$(PROG_EXT)
+sokol: builddir
+	$(CC) $(INC) -shared -fpic $(CFLAGS) etc/sokol.c $(LINK) -o $(BIN)/libsokol.$(LIBEXT)
 
-clean:
-	rm -rf $(OUT_PATH)/ || yes
+TARGETS := $(foreach file,$(foreach src,$(wildcard $(SCENES)/*.c),$(notdir $(src))),$(patsubst %.c,$(BIN)/%.$(LIBEXT),$(file)))
 
-all: clean scenes program
+.PHONY: FORCE scenes
 
-.PHONY: default all program scenes clean
+FORCE: ;
+
+$(BIN)/%.$(LIBEXT): $(SCENES)/%.c FORCE | $(BIN)
+	$(CC) $(INC) -shared -fpic $(CFLAGS) $(SRC) $(LINK) -lsokol -o $@ $<
+
+scenes: sokol $(TARGETS)
+
+program: builddir sokol shader
+	$(CC) $(INC) $(CFLAGS) -DFWT_MAIN_PROGRAM $(SRC) $(LINK) -lsokol -o $(BIN)/fwt$(PROGEXT)
+
+all: sokol scenes program
+
+.PHONY: default all builddir sokol scenes program shader
